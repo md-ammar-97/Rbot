@@ -1,149 +1,277 @@
 # RBot — Deployment Guide
 
+**Last updated:** 2026-06-21  
+**Status:** Code pushed to GitHub. Render deploy in progress.
+
+---
+
+## What's already done
+
+| Item | Status | Details |
+|---|---|---|
+| Supabase project | Done | `ogecgrhzretnkgehyifi` · ap-south-1 (Mumbai) |
+| All 5 DB migrations | Done | 17 tables, enums, RLS, seed data, profile trigger |
+| Storage buckets | Done | `resume-uploads` (10MB), `linkedin-exports` (50MB), `artifacts` (10MB) |
+| Google OAuth | Done | Enabled in Supabase Auth Providers |
+| backend `.env` | Done locally | Never committed — keys are safe |
+| frontend `.env.local` | Done locally | Never committed — keys are safe |
+| Code pushed to GitHub | Done | `https://github.com/md-ammar-97/Rbot` · branch: `master` |
+
+---
+
 ## Architecture
 
 ```
-Vercel (Next.js frontend)
-    ↕ HTTPS
-Render (FastAPI + Celery + Redis + n8n)
-    ↕ Supabase SDK
-Supabase (PostgreSQL + Auth + Storage)
-    project: ogecgrhzretnkgehyifi
-    region: ap-south-1 (Mumbai)
+Vercel (Next.js 14 frontend)
+    ↕ HTTPS/REST
+Render — rbot-api  (FastAPI, Python 3.11)
+Render — rbot-celery  (Celery worker)
+Render — rbot-redis  (Key Value / Redis)
+    ↕ Supabase SDK + service role key
+Supabase (PostgreSQL 15 + Auth + Storage)
+    ↕ HTTP POST /internal/discovery/run every 4h
+n8n Cloud (job discovery workflow)
 ```
-
-## Prerequisites checklist
-
-- [x] Supabase project created — `https://ogecgrhzretnkgehyifi.supabase.co`
-- [x] All 5 migrations applied
-- [x] Storage buckets: `resume-uploads`, `linkedin-exports`, `artifacts`
-- [x] Google OAuth enabled in Supabase Auth Providers
-- [ ] GitHub repo created and code pushed
-- [ ] Render account connected to GitHub repo
-- [ ] Vercel account connected to GitHub repo
 
 ---
 
-## Step 1 — Push to GitHub
+## Step 1 — Deploy Redis on Render
 
-```bash
-# In the RBot project root
-git init
-git add .
-git commit -m "Initial implementation — RBot AI PM Job Co-Pilot"
-git remote add origin https://github.com/YOUR_USERNAME/rbot.git
-git push -u origin main
-```
+Redis must exist first so its connection string can be added to the API service.
 
-> **IMPORTANT:** `.env` and `.env.local` are in `.gitignore` — they will NOT be pushed. Verify with `git status` before pushing.
+1. Render dashboard → top-right **New +** → **Key Value**
+2. Fill in:
+   - **Name:** `rbot-redis`
+   - **Region:** Oregon (US West)
+   - **Plan:** Free
+3. Click **Create Key Value**
+4. Wait ~1 minute → click into `rbot-redis` → copy the **Internal Redis URL**  
+   (format: `redis://red-xxxx:6379`)
 
 ---
 
-## Step 2 — Deploy Backend on Render
+## Step 2 — Deploy Backend API on Render
 
-1. Go to [render.com](https://render.com) → New → **Blueprint**
-2. Connect your GitHub repo
-3. Render will detect `render.yaml` and show 4 services: `rbot-api`, `rbot-celery`, `rbot-n8n`, `rbot-redis`
-4. Click **Apply** — Render creates all services automatically
+> **Known issue with Render's Python default:** Render defaults to Python 3.14 which breaks `pydantic-core` and `PyMuPDF`. The repo includes `backend/.python-version` with `3.11.9` to fix this. If a build still fails on 3.14, add env var `PYTHON_VERSION=3.11.9` manually in the service settings.
 
-### Set environment variables (Render dashboard → each service → Environment)
+1. Render dashboard → **New +** → **Web Service**
+2. Connect repo: `md-ammar-97/Rbot`
+3. Fill in:
 
-For **rbot-api** and **rbot-celery**, add these (same values as your `.env`):
+| Field | Value |
+|---|---|
+| **Name** | `rbot-api` |
+| **Language** | Python |
+| **Branch** | `master` |
+| **Region** | Oregon (US West) |
+| **Root Directory** | `backend` |
+| **Build Command** | `pip install -r requirements.txt && playwright install chromium` |
+| **Start Command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| **Health Check Path** | `/health` |
+| **Instance Type** | Free |
+
+4. Add these environment variables:
+
+| Key | Value | Source |
+|---|---|---|
+| `PYTHON_VERSION` | `3.11.9` | Fixed value — prevents Render from using Python 3.14 |
+| `SUPABASE_URL` | `https://ogecgrhzretnkgehyifi.supabase.co` | Fixed value |
+| `SUPABASE_SERVICE_KEY` | `eyJhbGci...` (service role JWT) | Copy from `backend/.env` |
+| `SUPABASE_ANON_KEY` | `eyJhbGci...` (anon JWT) | Copy from `backend/.env` |
+| `GROQ_API_KEY` | `gsk_...` | Copy from `backend/.env` |
+| `GROQ_PRIMARY_MODEL` | `llama-3.3-70b-versatile` | Fixed value |
+| `GROQ_FAST_MODEL` | `llama-3.1-8b-instant` | Fixed value |
+| `APP_ENV` | `production` | Fixed value |
+| `APP_SECRET_KEY` | 64-char hex string | Copy from `backend/.env` |
+| `INTERNAL_API_KEY` | random string | Copy from `backend/.env` |
+| `PLAYWRIGHT_HEADLESS` | `true` | Fixed value |
+| `FRONTEND_URL` | `http://placeholder.com` | Update after Vercel deploy (Step 4) |
+| `REDIS_URL` | `redis://red-xxxx:6379` | Internal Redis URL from Step 1 |
+
+5. Click **Deploy Web Service**
+6. First build takes 5–10 minutes (installs Playwright + Chromium ~300MB)
+7. Verify: once deployed, open `https://rbot-api.onrender.com/health` → should return `{"status":"ok"}`
+
+---
+
+## Step 3 — Deploy Celery Worker on Render
+
+1. Render dashboard → **New +** → **Background Worker**
+2. Connect repo: `md-ammar-97/Rbot`
+3. Fill in:
+
+| Field | Value |
+|---|---|
+| **Name** | `rbot-celery` |
+| **Language** | Python |
+| **Branch** | `master` |
+| **Region** | Oregon (US West) |
+| **Root Directory** | `backend` |
+| **Build Command** | `pip install -r requirements.txt && playwright install chromium` |
+| **Start Command** | `celery -A app.workers.celery_app worker --loglevel=info -Q ingestion,profile,recovery,discovery,scoring,drafting -c 4` |
+| **Instance Type** | Free |
+
+4. Add these environment variables (same as rbot-api except no `FRONTEND_URL`, `PLAYWRIGHT_HEADLESS`, `HEALTH_CHECK`):
 
 | Key | Value |
-|-----|-------|
+|---|---|
+| `PYTHON_VERSION` | `3.11.9` |
 | `SUPABASE_URL` | `https://ogecgrhzretnkgehyifi.supabase.co` |
-| `SUPABASE_SERVICE_KEY` | *(your service role key)* |
-| `SUPABASE_ANON_KEY` | *(your anon key)* |
-| `GROQ_API_KEY` | *(your Groq key)* |
-| `APP_SECRET_KEY` | *(copy from your local `backend/.env`)* |
-| `INTERNAL_API_KEY` | *(copy from your local `backend/.env`)* |
-| `FRONTEND_URL` | *(your Vercel URL — add after Step 3)* |
+| `SUPABASE_SERVICE_KEY` | Copy from `backend/.env` |
+| `SUPABASE_ANON_KEY` | Copy from `backend/.env` |
+| `GROQ_API_KEY` | Copy from `backend/.env` |
+| `GROQ_PRIMARY_MODEL` | `llama-3.3-70b-versatile` |
+| `GROQ_FAST_MODEL` | `llama-3.1-8b-instant` |
+| `APP_ENV` | `production` |
+| `APP_SECRET_KEY` | Copy from `backend/.env` |
+| `INTERNAL_API_KEY` | Copy from `backend/.env` |
+| `REDIS_URL` | Internal Redis URL from Step 1 |
 
-For **rbot-n8n**, add:
-
-| Key | Value |
-|-----|-------|
-| `N8N_BASIC_AUTH_USER` | pick any username e.g. `admin` |
-| `N8N_BASIC_AUTH_PASSWORD` | pick a strong password |
-| `N8N_ENCRYPTION_KEY` | any random 32-char string |
-| `WEBHOOK_URL` | `https://rbot-n8n.onrender.com` |
-| `RBOT_API_URL` | `https://rbot-api.onrender.com` |
-| `INTERNAL_API_KEY` | *(copy from your local `backend/.env`)* |
-
-5. Wait for all services to go **Live** (5–10 mins first deploy)
-6. Test: `curl https://rbot-api.onrender.com/health` → should return `{"status":"ok"}`
+5. Click **Save and Deploy**
 
 ---
 
-## Step 3 — Deploy Frontend on Vercel
+## Step 4 — Deploy Frontend on Vercel
 
-1. Go to [vercel.com](https://vercel.com) → New Project → import your GitHub repo
-2. Set **Root Directory** to `frontend`
-3. Framework: **Next.js** (auto-detected)
-4. Add environment variables:
+1. Go to [vercel.com](https://vercel.com) → **New Project** → Import `md-ammar-97/Rbot`
+2. Fill in:
+
+| Field | Value |
+|---|---|
+| **Framework Preset** | Next.js (auto-detected) |
+| **Root Directory** | `frontend` |
+| **Build Command** | `npm run build` (default) |
+| **Output Directory** | `.next` (default) |
+
+3. Add environment variables:
 
 | Key | Value |
-|-----|-------|
+|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://ogecgrhzretnkgehyifi.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(your anon key)* |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon JWT — copy from `frontend/.env.local` |
 | `NEXT_PUBLIC_API_URL` | `https://rbot-api.onrender.com` |
 
-5. Click **Deploy**
-6. Copy the Vercel URL (e.g. `https://rbot.vercel.app`)
-7. Go back to Render → rbot-api → Environment → update `FRONTEND_URL` to your Vercel URL
+4. Click **Deploy** — takes ~2 minutes
+5. Copy the deployed URL (e.g. `https://rbot.vercel.app`)
+
+**After Vercel deploy — update two things:**
+
+a. Render → `rbot-api` → Environment → update `FRONTEND_URL` to your Vercel URL → Save Changes → Manual Deploy
+
+b. Supabase → Auth → URL Configuration:
+   - Add to **Redirect URLs**: `https://rbot.vercel.app/auth/callback`
 
 ---
 
-## Step 4 — Configure n8n
+## Step 5 — Set up n8n for Job Discovery
 
-1. Open `https://rbot-n8n.onrender.com` — log in with the username/password you set
-2. Click **+** → New Workflow → menu (⋮) → **Import from JSON**
-3. Paste contents of `n8n/workflows/job_discovery.json`
-4. Save and **Activate** the workflow
-5. It will call `POST https://rbot-api.onrender.com/internal/discovery/run` every 4 hours
+Use **n8n Cloud** (free tier — no card needed, no server required).
 
----
+1. Sign up at [app.n8n.cloud](https://app.n8n.cloud) — free tier allows 5 active workflows
+2. Create a new workflow → menu (⋮) → **Import from File**
+3. Upload `n8n/workflows/job_discovery.json` from this repo
+4. In the workflow, click the HTTP Request node → update:
+   - **URL:** `https://rbot-api.onrender.com/internal/discovery/run`
+   - **Header `X-Internal-Key`:** your `INTERNAL_API_KEY` value (from `backend/.env`)
+5. Click **Activate** → the workflow fires every 4 hours automatically
 
-## Step 5 — Add Supabase redirect URL for production
-
-1. Go to: https://supabase.com/dashboard/project/ogecgrhzretnkgehyifi/auth/url-configuration
-2. Add your Vercel URL to **Redirect URLs**:
-   ```
-   https://rbot.vercel.app/auth/callback
-   ```
-3. Go to Google Cloud Console → your OAuth credentials → add to Authorized redirect URIs:
-   ```
-   https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback
-   ```
-   *(This should already be there from initial setup — just verify)*
+> Note: n8n Cloud free tier workflows pause after 14 days of inactivity. Just re-activate if it stops running.
 
 ---
 
-## Step 6 — Smoke test
+## Step 6 — Verify Google OAuth Redirect (Production)
 
-1. Open `https://rbot.vercel.app`
-2. Click **Get Started** → Google Sign-In → should create your profile row in Supabase
-3. Upload a resume → check Supabase dashboard → `raw_evidence` table should have a row
-4. Check Celery worker logs in Render → should show task being picked up
+1. Go to [Supabase Auth URL Configuration](https://supabase.com/dashboard/project/ogecgrhzretnkgehyifi/auth/url-configuration)
+2. **Site URL:** set to `https://rbot.vercel.app`
+3. **Redirect URLs:** add `https://rbot.vercel.app/auth/callback`
+4. Go to [Google Cloud Console](https://console.cloud.google.com) → your OAuth client → **Authorized redirect URIs** → verify `https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback` is listed (should already be there from initial setup)
 
 ---
 
-## Local development
+## Step 7 — Smoke Test
+
+Run these checks in order:
+
+```
+1. GET  https://rbot-api.onrender.com/health
+   → {"status":"ok"}
+
+2. Open https://rbot.vercel.app
+   → Homepage loads
+
+3. Click Get Started → Google Sign-In
+   → Should redirect to /onboarding (new user)
+   → Supabase dashboard → Authentication → Users → your email should appear
+   → Supabase dashboard → Table Editor → profiles → new row with your user_id
+
+4. Upload a resume (.pdf or .docx, <10MB)
+   → Supabase dashboard → Storage → resume-uploads → file should appear
+   → Supabase dashboard → Table Editor → raw_evidence → new row
+   → Render → rbot-celery → Logs → should show Celery task picked up
+
+5. POST https://rbot-api.onrender.com/internal/discovery/run
+   Header: X-Internal-Key: <your INTERNAL_API_KEY>
+   → {"status":"queued"} or similar
+   → Verify jobs appearing in raw_jobs table after a few minutes
+```
+
+---
+
+## Environment Variable Reference
+
+### `backend/.env` (never committed)
+
+```env
+SUPABASE_URL=https://ogecgrhzretnkgehyifi.supabase.co
+SUPABASE_SERVICE_KEY=<service role JWT>
+SUPABASE_ANON_KEY=<anon JWT>
+GROQ_API_KEY=<gsk_...>
+GROQ_PRIMARY_MODEL=llama-3.3-70b-versatile
+GROQ_FAST_MODEL=llama-3.1-8b-instant
+APP_ENV=development
+APP_SECRET_KEY=<64-char hex>
+INTERNAL_API_KEY=<random string>
+REDIS_URL=redis://localhost:6379
+PLAYWRIGHT_HEADLESS=true
+```
+
+### `frontend/.env.local` (never committed)
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://ogecgrhzretnkgehyifi.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon JWT>
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+---
+
+## Service URLs (production)
+
+| Service | URL |
+|---|---|
+| Frontend | `https://rbot.vercel.app` *(after deploy)* |
+| Backend API | `https://rbot-api.onrender.com` |
+| API Health | `https://rbot-api.onrender.com/health` |
+| Supabase Dashboard | `https://supabase.com/dashboard/project/ogecgrhzretnkgehyifi` |
+| n8n Cloud | `https://app.n8n.cloud` |
+
+---
+
+## Local Development
 
 ```bash
-# Terminal 1 — Backend
+# Terminal 1 — Redis
+docker run -d -p 6379:6379 redis:alpine
+
+# Terminal 2 — Backend
 cd backend
 pip install -r requirements.txt
 playwright install chromium
 uvicorn app.main:app --reload --port 8000
 
-# Terminal 2 — Celery worker
+# Terminal 3 — Celery Worker
 cd backend
 celery -A app.workers.celery_app worker --loglevel=info
-
-# Terminal 3 — Redis (requires Docker)
-docker run -p 6379:6379 redis:alpine
 
 # Terminal 4 — Frontend
 cd frontend
@@ -151,27 +279,18 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## Key URLs (production)
+## Troubleshooting
 
-| Service | URL |
-|---------|-----|
-| Frontend | https://rbot.vercel.app *(after deploy)* |
-| Backend API | https://rbot-api.onrender.com |
-| API Health | https://rbot-api.onrender.com/health |
-| n8n | https://rbot-n8n.onrender.com |
-| Supabase Dashboard | https://supabase.com/dashboard/project/ogecgrhzretnkgehyifi |
-
----
-
-## Supabase project details
-
-| Field | Value |
-|-------|-------|
-| Project ref | `ogecgrhzretnkgehyifi` |
-| Region | `ap-south-1` (Mumbai) |
-| URL | `https://ogecgrhzretnkgehyifi.supabase.co` |
-| DB host | `db.ogecgrhzretnkgehyifi.supabase.co` |
+| Problem | Cause | Fix |
+|---|---|---|
+| Build fails: `pydantic-core` Rust error | Render using Python 3.14 | Add `PYTHON_VERSION=3.11.9` env var, redeploy |
+| Build fails: `PyMuPDF` stuck at metadata | Same Python 3.14 issue | Same fix |
+| Health check fails after deploy | App still starting up (cold start) | Wait 60s, retry |
+| Google OAuth redirect fails | Redirect URL not in Supabase allowlist | Add `https://your-vercel-url/auth/callback` to Supabase Auth URL Configuration |
+| Celery tasks not running | `REDIS_URL` wrong or Redis not created | Verify internal Redis URL in rbot-celery env vars |
+| Job discovery not running | n8n workflow inactive | Go to n8n Cloud → reactivate workflow |
+| Free tier API spins down | Render free tier spins down after 15min inactivity | Expected behaviour — first request after idle takes ~30s cold start |
