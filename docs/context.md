@@ -41,7 +41,11 @@ These are settled — do not re-litigate without a strong reason:
 - **PM-only product.** No engineering, design, or other job tracks in scope.
 - **Quality-first, not volume-first.** Interview callback rate per qualified application is the primary metric, not total applications submitted.
 - **Resume Quality Recovery is a mandatory gate.** No job matching or application work starts until the user's profile passes quality diagnosis.
-- **Auth: Google OAuth only.** Login via `supabase.auth.signInWithOAuth({ provider: 'google' })`. Scopes: `openid email profile` only. No password login, no magic link in Phase 1. New users auto-redirected to `/onboarding`; returning users to `/dashboard`. Each user's data is 100% isolated via Supabase RLS (`user_id = auth.uid()` on every table) — no application-layer logic needed for isolation.
+- **Auth: Google OAuth + Email + Password + OTP.** Two login paths:
+  1. **Google OAuth** — `supabase.auth.signInWithOAuth({ provider: 'google' })`, scopes `openid email profile`. Callback handled at `/auth/callback` (excluded from middleware to prevent PKCE cookie interference).
+  2. **Email + Password + OTP** — user enters credentials → `POST /api/auth/send-otp` verifies password via Supabase and sends a 6-digit code via Resend email (5-min expiry; re-request within 5 min resends the same code) → user enters code → `POST /api/auth/verify-otp` marks code used and returns session → client calls `supabase.auth.setSession()`.
+  
+  Disposable/throwaway email domains (mailinator.com, guerrillamail.com, etc.) are blocked at the login page. **Public signup is disabled** — clicking "Sign up" shows a modal directing users to contact `mohdammar97@gmail.com`. All sessions use Supabase RLS (`user_id = auth.uid()` on every table). New users auto-redirect to `/onboarding`; returning users to `/dashboard`.
 - **LinkedIn: no scraping.** Accept user-downloaded LinkedIn export `.zip`. Block all LinkedIn scraping and autonomous LinkedIn messaging at the architecture level.
 - **GitHub is the best evidence source.** Integrate via Contents API (public repos, no auth) or OAuth (private repos). Extract `README.md`, `CONTEXT.md`, `CLAUDE.md`, `/docs` directory files to build richer project evidence.
 - **Greenhouse and Lever first for job discovery.** Both expose public structured job board APIs. These are the Phase 1 discovery layer. General web crawling is not in scope for Phase 1.

@@ -163,6 +163,53 @@ b. Supabase → Auth → URL Configuration:
 
 ---
 
+## Step 4.5 — Email OTP Setup (required for email login)
+
+Email + password login sends a one-time code via [Resend](https://resend.com) before establishing a session.
+
+### 1. Create a Resend account
+
+1. Sign up at [resend.com](https://resend.com) — free tier gives 3,000 emails/month
+2. Dashboard → **API Keys** → **Create API Key** → copy the key (`re_...`)
+3. Dashboard → **Domains** → add and verify a sending domain (or use `onboarding@resend.dev` for sandbox testing)
+
+### 2. Add Vercel environment variables
+
+Go to Vercel → your project → **Settings** → **Environment Variables** and add:
+
+| Key | Value |
+|---|---|
+| `RESEND_API_KEY` | Your Resend API key (`re_...`) |
+| `OTP_FROM_EMAIL` | Verified sender address (e.g. `noreply@yourdomain.com`) |
+| `SUPABASE_SERVICE_KEY` | Service role JWT — copy from `backend/.env` (same key used on Render) |
+
+> `SUPABASE_SERVICE_KEY` is a **server-only** key (not prefixed with `NEXT_PUBLIC_`). It is never exposed to the browser. It is used only inside the `/api/auth/send-otp` and `/api/auth/verify-otp` API routes.
+
+### 3. DB migration
+
+The `otp_verifications` table was applied via Supabase MCP. If setting up a fresh project, run:
+
+```sql
+CREATE TABLE public.otp_verifications (
+    id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    email      text        NOT NULL,
+    otp_code   text        NOT NULL,
+    expires_at timestamptz NOT NULL,
+    used       bool        NOT NULL DEFAULT false,
+    attempts   int         NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_otp_email_active ON otp_verifications(email, used, expires_at);
+ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
+```
+
+### 4. Redeploy Vercel
+
+After adding the env vars, trigger a new Vercel deployment so the API routes pick them up.
+
+---
+
 ## Step 5 — Set up n8n for Job Discovery
 
 Use **n8n Cloud** (free tier — no card needed, no server required).
@@ -291,6 +338,10 @@ Open [http://localhost:3000](http://localhost:3000)
 | Build fails: `PyMuPDF` stuck at metadata | Same Python 3.14 issue | Same fix |
 | Health check fails after deploy | App still starting up (cold start) | Wait 60s, retry |
 | Google OAuth redirect fails | Redirect URL not in Supabase allowlist | Add `https://your-vercel-url/auth/callback` to Supabase Auth URL Configuration |
+| Google OAuth: `auth_failed` on callback | Middleware clears PKCE cookies | Ensure `auth/callback` is excluded from middleware matcher (already fixed in code) |
+| OTP email not received | `RESEND_API_KEY` or `OTP_FROM_EMAIL` missing | Add both env vars to Vercel and redeploy |
+| OTP email not received | Sender domain not verified in Resend | Verify domain in Resend dashboard or use `onboarding@resend.dev` for testing |
+| `send-otp` returns 500 | `SUPABASE_SERVICE_KEY` missing from Vercel | Add the service role JWT as a Vercel env var (server-only, no `NEXT_PUBLIC_` prefix) |
 | Celery tasks not running | `REDIS_URL` wrong or Redis not created | Verify internal Redis URL in rbot-celery env vars |
 | Job discovery not running | n8n workflow inactive | Go to n8n Cloud → reactivate workflow |
 | Free tier API spins down | Render free tier spins down after 15min inactivity | Expected behaviour — first request after idle takes ~30s cold start |
