@@ -1,19 +1,26 @@
 "use client";
 
 import { useState, Suspense } from "react";
+import { useRouter }          from "next/navigation";
 import Link                   from "next/link";
 import { useSearchParams }    from "next/navigation";
 import { createClient }       from "@/lib/supabase/client";
 
+type Stage = "email" | "gate";
+
 function LoginContent() {
+  const router       = useRouter();
   const searchParams = useSearchParams();
   const urlError     = searchParams.get("error");
-  const supabase     = createClient();
 
-  const [stage,   setStage]   = useState<"email" | "sent">("email");
-  const [email,   setEmail]   = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const supabase = createClient();
+
+  const [stage,      setStage]      = useState<Stage>("email");
+  const [email,      setEmail]      = useState("");
+  const [otpCode,    setOtpCode]    = useState("");
+  const [secretCode, setSecretCode] = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
 
   // ---- Google OAuth ----
   const handleGoogleSignIn = async () => {
@@ -32,18 +39,88 @@ function LoginContent() {
     }
   };
 
-  // ---- Email: send magic link ----
-  const handleSendLink = async (e: React.FormEvent) => {
+  // ---- Email: send custom OTP via Resend ----
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email:   email.trim().toLowerCase(),
-        options: { shouldCreateUser: true },
+      const res = await fetch("/api/auth/send-otp", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      if (otpError) { setError(otpError.message); return; }
-      setStage("sent");
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to send code. Try again.");
+        return;
+      }
+
+      setStage("gate");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---- Gate: verify OTP + secret code ----
+  const handleVerifyGate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          email:      email.trim().toLowerCase(),
+          otp:        otpCode.trim(),
+          secretCode: secretCode.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Verification failed. Please try again.");
+        return;
+      }
+
+      const { error: verifyError, data: authData } = await supabase.auth.verifyOtp({
+        token_hash: data.token_hash,
+        type:       "email",
+      });
+
+      if (verifyError || !authData.session) {
+        setError(verifyError?.message ?? "Session creation failed. Please try again.");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_complete")
+        .eq("id", authData.session.user.id)
+        .single();
+
+      router.replace(profile?.onboarding_complete ? "/dashboard" : "/onboarding");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---- Resend code ----
+  const handleResend = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const data = await res.json();
+      if (!res.ok) setError(data.error ?? "Failed to resend code.");
     } finally {
       setLoading(false);
     }
@@ -102,7 +179,7 @@ function LoginContent() {
               </div>
 
               {/* Email form */}
-              <form onSubmit={handleSendLink} className="flex flex-col gap-3">
+              <form onSubmit={handleSendCode} className="flex flex-col gap-3">
                 <input
                   type="email"
                   placeholder="Email"
@@ -122,39 +199,74 @@ function LoginContent() {
                   disabled={loading}
                   className="btn-primary w-full flex items-center justify-center"
                 >
-                  {loading ? "Sending link…" : "Send Sign-in Link"}
+                  {loading ? "Sending code…" : "Send Sign-in Code"}
                 </button>
               </form>
             </>
           )}
 
-          {stage === "sent" && (
-            <div className="text-center">
-              {/* Checkmark */}
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" aria-hidden>
-                  <path stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"
-                        strokeLinejoin="round" d="M20 6L9 17l-5-5" />
-                </svg>
-              </div>
+          {stage === "gate" && (
+            <>
+              <button
+                onClick={() => { setStage("email"); setError(null); setOtpCode(""); setSecretCode(""); }}
+                className="mb-4 text-[13px] text-apple-accent hover:underline flex items-center gap-1"
+              >
+                ← Back
+              </button>
 
               <h1 className="text-[20px] font-semibold text-apple-text mb-2">
-                Check your email
+                Verify your access
               </h1>
-              <p className="text-[14px] text-apple-text-secondary mb-6">
-                We sent a sign-in link to <strong>{email}</strong>.<br />
-                Click the link in the email to continue.
+              <p className="text-[13px] text-apple-text-secondary mb-6">
+                Enter the code sent to <strong>{email}</strong> and your access code.
               </p>
 
-              <button
-                onClick={() => { setStage("email"); setError(null); }}
-                className="text-[13px] text-apple-accent hover:underline"
-              >
-                Use a different email
-              </button>
-            </div>
-          )}
+              <form onSubmit={handleVerifyGate} className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  maxLength={8}
+                  placeholder="Sign-in code"
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value.slice(0, 8))}
+                  required
+                  autoFocus
+                  autoComplete="off"
+                  className="input text-center text-[22px] tracking-[0.3em] font-mono"
+                />
+                <input
+                  type="password"
+                  placeholder="Access code"
+                  value={secretCode}
+                  onChange={e => setSecretCode(e.target.value)}
+                  required
+                  autoComplete="off"
+                  className="input"
+                />
 
+                {error && (
+                  <p className="text-[13px] text-red-500 text-center">{error}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || otpCode.length < 8 || !secretCode}
+                  className="btn-primary w-full flex items-center justify-center"
+                >
+                  {loading ? "Verifying…" : "Verify & Sign In"}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center">
+                <button
+                  onClick={handleResend}
+                  disabled={loading}
+                  className="text-[13px] text-apple-accent hover:underline disabled:opacity-50"
+                >
+                  Didn&apos;t receive a code? Resend
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="text-center mt-5">
