@@ -106,3 +106,4 @@ services:
   - type: redis
     name: rbot-redis
     plan: free
+    ipAllowList: []   # empty = accessible only from services within this Render account
