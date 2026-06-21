@@ -12,8 +12,8 @@ export default function AuthCallback() {
 
     const handleAuth = async () => {
       const params = new URLSearchParams(window.location.search);
-      const code  = params.get("code");
-      const error = params.get("error");
+      const code   = params.get("code");
+      const error  = params.get("error");
 
       if (error) {
         router.replace(`/login?error=${encodeURIComponent(error)}`);
@@ -21,23 +21,17 @@ export default function AuthCallback() {
       }
 
       if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-        if (!exchangeError) {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
+        if (!exchangeError && data.session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("onboarding_complete")
+            .eq("id", data.session.user.id)
+            .single();
 
-          if (user) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("onboarding_complete")
-              .eq("id", user.id)
-              .single();
-
-            router.replace(profile?.onboarding_complete ? "/dashboard" : "/onboarding");
-            return;
-          }
+          router.replace(profile?.onboarding_complete ? "/dashboard" : "/onboarding");
+          return;
         }
       }
 
@@ -49,7 +43,7 @@ export default function AuthCallback() {
 
   return (
     <div className="min-h-screen bg-apple-surface flex items-center justify-center">
-      <p className="text-[15px] text-apple-text-secondary">Completing sign-in...</p>
+      <p className="text-[15px] text-apple-text-secondary">Completing sign-in…</p>
     </div>
   );
 }
