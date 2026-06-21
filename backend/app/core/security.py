@@ -15,8 +15,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(b
         if not result.user:
             logger.error("auth.get_user returned no user (token prefix: %s...)", token[:20])
             raise HTTPException(status_code=401, detail="Invalid token")
-        # Attach the raw token so downstream code can build user-scoped clients
-        result.user.access_token = token
         return result.user
     except HTTPException:
         raise
