@@ -42,14 +42,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=auth_failed", origin));
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("onboarding_complete")
-    .eq("id", data.session.user.id)
-    .single();
-
-  const redirectTo = profile?.onboarding_complete ? "/dashboard" : "/onboarding";
-  const finalResponse = NextResponse.redirect(new URL(redirectTo, origin));
+  const finalResponse = NextResponse.redirect(new URL("/gate", origin));
 
   // Copy session cookies from the sink to the redirect response
   cookieSink.cookies.getAll().forEach((c) =>

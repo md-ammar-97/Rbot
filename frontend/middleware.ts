@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PROTECTED_PREFIXES = [
   "/dashboard",
   "/onboarding",
+  "/gate",
   "/profile",
   "/jobs",
   "/apply",

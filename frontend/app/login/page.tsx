@@ -1,34 +1,24 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter }          from "next/navigation";
 import Link                   from "next/link";
 import { useSearchParams }    from "next/navigation";
 import { createClient }       from "@/lib/supabase/client";
 
-const SECRET_CODE = "AMMAR8800206651";
-
-type Stage = "email" | "gate";
-
 function LoginContent() {
-  const router       = useRouter();
   const searchParams = useSearchParams();
   const urlError     = searchParams.get("error");
+  const supabase     = createClient();
 
-  const supabase = createClient();
-
-  const [stage,       setStage]       = useState<Stage>("email");
-  const [email,       setEmail]       = useState("");
-  const [otpCode,     setOtpCode]     = useState("");
-  const [secretCode,  setSecretCode]  = useState("");
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
+  const [stage,   setStage]   = useState<"email" | "sent">("email");
+  const [email,   setEmail]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
 
   // ---- Google OAuth ----
   const handleGoogleSignIn = async () => {
     setError(null);
     setLoading(true);
-
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -36,82 +26,24 @@ function LoginContent() {
         scopes:     "openid email profile",
       },
     });
-
     if (oauthError) {
       setError("Google sign-in is not available right now.");
       setLoading(false);
     }
   };
 
-  // ---- Email: send Supabase OTP ----
-  const handleSendCode = async (e: React.FormEvent) => {
+  // ---- Email: send magic link ----
+  const handleSendLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
       const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
+        email:   email.trim().toLowerCase(),
         options: { shouldCreateUser: true },
       });
-
-      if (otpError) {
-        setError(otpError.message);
-        return;
-      }
-
-      setStage("gate");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ---- Gate: verify OTP + secret code ----
-  const handleVerifyGate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (secretCode !== SECRET_CODE) {
-      setError("Invalid access code.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: otpCode,
-        type:  "email",
-      });
-
-      if (verifyError || !data.session) {
-        setError(verifyError?.message ?? "Verification failed. Please try again.");
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("onboarding_complete")
-        .eq("id", data.session.user.id)
-        .single();
-
-      router.replace(profile?.onboarding_complete ? "/dashboard" : "/onboarding");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ---- Resend code ----
-  const handleResend = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const { error: resendError } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: { shouldCreateUser: true },
-      });
-      if (resendError) setError(resendError.message);
+      if (otpError) { setError(otpError.message); return; }
+      setStage("sent");
     } finally {
       setLoading(false);
     }
@@ -138,7 +70,6 @@ function LoginContent() {
                 Sign in to RBot
               </h1>
 
-              {/* URL error (e.g. ?error=auth_failed from OAuth) */}
               {urlError && (
                 <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200">
                   <p className="text-[13px] text-red-600 text-center">
@@ -171,7 +102,7 @@ function LoginContent() {
               </div>
 
               {/* Email form */}
-              <form onSubmit={handleSendCode} className="flex flex-col gap-3">
+              <form onSubmit={handleSendLink} className="flex flex-col gap-3">
                 <input
                   type="email"
                   placeholder="Email"
@@ -191,75 +122,39 @@ function LoginContent() {
                   disabled={loading}
                   className="btn-primary w-full flex items-center justify-center"
                 >
-                  {loading ? "Sending code…" : "Send Sign-in Code"}
+                  {loading ? "Sending link…" : "Send Sign-in Link"}
                 </button>
               </form>
             </>
           )}
 
-          {stage === "gate" && (
-            <>
-              <button
-                onClick={() => { setStage("email"); setError(null); setOtpCode(""); setSecretCode(""); }}
-                className="mb-4 text-[13px] text-apple-accent hover:underline flex items-center gap-1"
-              >
-                ← Back
-              </button>
+          {stage === "sent" && (
+            <div className="text-center">
+              {/* Checkmark */}
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" aria-hidden>
+                  <path stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"
+                        strokeLinejoin="round" d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
 
               <h1 className="text-[20px] font-semibold text-apple-text mb-2">
-                Verify your access
+                Check your email
               </h1>
-              <p className="text-[13px] text-apple-text-secondary mb-6">
-                Enter the 6-digit code sent to <strong>{email}</strong> and your access code.
+              <p className="text-[14px] text-apple-text-secondary mb-6">
+                We sent a sign-in link to <strong>{email}</strong>.<br />
+                Click the link in the email to continue.
               </p>
 
-              <form onSubmit={handleVerifyGate} className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={otpCode}
-                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  required
-                  autoFocus
-                  className="input text-center text-[24px] tracking-[0.5em] font-mono"
-                />
-                <input
-                  type="password"
-                  placeholder="Access code"
-                  value={secretCode}
-                  onChange={e => setSecretCode(e.target.value)}
-                  required
-                  autoComplete="off"
-                  className="input"
-                />
-
-                {error && (
-                  <p className="text-[13px] text-red-500 text-center">{error}</p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading || otpCode.length < 6 || !secretCode}
-                  className="btn-primary w-full flex items-center justify-center"
-                >
-                  {loading ? "Verifying…" : "Verify & Sign In"}
-                </button>
-              </form>
-
-              <div className="mt-4 text-center">
-                <button
-                  onClick={handleResend}
-                  disabled={loading}
-                  className="text-[13px] text-apple-accent hover:underline disabled:opacity-50"
-                >
-                  Didn&apos;t receive a code? Resend
-                </button>
-              </div>
-            </>
+              <button
+                onClick={() => { setStage("email"); setError(null); }}
+                className="text-[13px] text-apple-accent hover:underline"
+              >
+                Use a different email
+              </button>
+            </div>
           )}
+
         </div>
 
         <div className="text-center mt-5">
