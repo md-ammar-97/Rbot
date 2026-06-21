@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           getAll: () => cookieStore.getAll(),
-          setAll: (cs) => cs.forEach((c) => pendingCookies.push(c)),
+          setAll: (cs: typeof pendingCookies) => cs.forEach((c) => pendingCookies.push(c)),
         },
       }
     );
