@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     {
       cookies: {
         getAll: () => request.cookies.getAll(),
-        setAll: (cs) =>
+        setAll: (cs: Array<{ name: string; value: string; options?: Record<string, unknown> }>) =>
           cs.forEach(({ name, value, options }) =>
             cookieSink.cookies.set(name, value, options as Parameters<typeof cookieSink.cookies.set>[2])
           ),
