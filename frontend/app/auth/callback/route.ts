@@ -1,17 +1,39 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code  = searchParams.get("code");
   const error = searchParams.get("error");
 
   if (error) {
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error)}`);
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(error)}`
+    );
   }
 
   if (code) {
-    const supabase = createClient();
+    const cookieStore = cookies();
+    // Collect cookies Supabase wants to set, then attach them to the redirect response
+    const pendingCookies: Array<{
+      name: string;
+      value: string;
+      options: Record<string, unknown>;
+    }> = [];
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cs) => cs.forEach((c) => pendingCookies.push(c)),
+        },
+      }
+    );
+
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!exchangeError) {
@@ -27,7 +49,18 @@ export async function GET(request: Request) {
           .single();
 
         const dest = profile?.onboarding_complete ? "/dashboard" : "/onboarding";
-        return NextResponse.redirect(`${origin}${dest}`);
+        const response = NextResponse.redirect(`${origin}${dest}`);
+
+        // Attach session cookies to the redirect so the browser stores them
+        pendingCookies.forEach(({ name, value, options }) => {
+          response.cookies.set(
+            name,
+            value,
+            options as Parameters<typeof response.cookies.set>[2]
+          );
+        });
+
+        return response;
       }
     }
   }
