@@ -1,7 +1,7 @@
 # RBot — Issues Log
 
 **Last updated:** 2026-06-21  
-**Overall auth status:** Render backend fixed (APP_ENV + CORS). Code hardening committed and pushed. Production login blocked by: Vercel deployment protection (D-1), missing Vercel env vars (B-1/B-2/B-3), and Supabase email confirmation requirement (D-4/C-2).
+**Overall auth status:** Email auth fully rearchitected — now uses Supabase native OTP (no Resend, no custom API routes, no server-side Vercel secrets). Vercel only needs 3 public env vars. Remaining blockers: Vercel deployment protection (D-1) and Supabase "Enable Email OTP" setting (E-1).
 
 ---
 
@@ -82,26 +82,20 @@ These are **not code bugs** — the code is correct. Login is broken because req
 ---
 
 ### B-1 · `RESEND_API_KEY` Missing from Vercel
-**Status:** OPEN  
-**Affected:** Email + OTP login  
-**Symptom:** OTP email is never delivered. `send-otp` route silently fails to send (the Resend API call uses `undefined` as the Bearer token).  
-**Fix:** Vercel → Project Settings → Environment Variables → add `RESEND_API_KEY` (value: `re_...` from Resend dashboard) → redeploy.
+**Status:** N/A — 2026-06-21  
+Email auth rearchitected to use Supabase native OTP. Resend is no longer used for auth. Custom `/api/auth/send-otp` route deleted.
 
 ---
 
 ### B-2 · `OTP_FROM_EMAIL` Missing from Vercel
-**Status:** OPEN  
-**Affected:** Email + OTP login  
-**Symptom:** Even if Resend API key is present, emails fail — Resend rejects requests with a `null` or `undefined` sender.  
-**Fix:** Vercel → Environment Variables → add `OTP_FROM_EMAIL` (a verified sender address in your Resend account, e.g. `noreply@yourdomain.com`). For testing, Resend allows `onboarding@resend.dev` without domain verification.
+**Status:** N/A — 2026-06-21  
+Same as B-1 — Resend no longer involved in email login.
 
 ---
 
 ### B-3 · `SUPABASE_SERVICE_KEY` Missing from Vercel
-**Status:** OPEN  
-**Affected:** Email + OTP login (both send-otp and verify-otp routes)  
-**Symptom:** `POST /api/auth/send-otp` returns HTTP 500. Both API routes use `supabaseAdmin` (created with the service role key) to read/write the `otp_verifications` table. With `undefined` as the key, the admin client fails immediately.  
-**Fix:** Vercel → Environment Variables → add `SUPABASE_SERVICE_KEY` (the service role JWT from `backend/.env`). This is a **server-only** key — do NOT use the `NEXT_PUBLIC_` prefix.
+**Status:** N/A — 2026-06-21  
+Custom `/api/auth/send-otp` and `/api/auth/verify-otp` routes deleted. Vercel no longer needs any server-side Supabase keys.
 
 ---
 
@@ -170,6 +164,18 @@ CREATE TABLE public.otp_verifications (
 CREATE INDEX idx_otp_email_active ON otp_verifications(email, used, expires_at);
 ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
 ```
+
+---
+
+## Section E — New Architecture Issues (2026-06-21)
+
+---
+
+### E-1 · Supabase "Enable Email OTP" Must Be On
+**Status:** MANUAL CHECK NEEDED  
+**Affected:** Email login  
+**Risk:** `supabase.auth.signInWithOtp({ email })` sends a magic link by default if "Enable Email OTP" is off. Users would receive a click-link email instead of a 6-digit code, and `verifyOtp({ type: 'email' })` would not work.  
+**Fix:** Supabase dashboard → Authentication → Providers → Email → toggle **"Enable Email OTP"** ON.
 
 ---
 
@@ -296,16 +302,15 @@ python -m py_compile app\main.py
 
 | Priority | Issue | Status | Action |
 |---|---|---|---|
-| 1 | D-3 / B-6 | ✅ DONE | Render `APP_ENV=production` + `FRONTEND_URL` set, redeploy triggered |
+| 1 | D-3 / B-6 | ✅ DONE | Render `APP_ENV=production` + `FRONTEND_URL` set |
 | 2 | C-3 | ✅ DONE | `otp_verifications` table confirmed present |
-| 3 | Code changes | ✅ DONE | Auth hardening committed and pushed — Vercel + Render auto-deploy picking it up |
-| 4 | D-1 | ⚠️ MANUAL | Vercel → Project Settings → General → Deployment Protection → disable |
-| 5 | D-2 | ⚠️ MANUAL | Confirm/fix which domain is the RBot production URL in Vercel |
-| 6 | B-3 | ⚠️ MANUAL | Vercel → Env Vars → add `SUPABASE_SERVICE_KEY` (service role JWT, no NEXT_PUBLIC_ prefix) |
-| 7 | B-1 | ⚠️ MANUAL | Vercel → Env Vars → add `RESEND_API_KEY` (from Resend dashboard) |
-| 8 | B-2 | ⚠️ MANUAL | Vercel → Env Vars → add `OTP_FROM_EMAIL` (e.g. `onboarding@resend.dev` for testing) |
-| 9 | C-2 / D-4 | ⚠️ MANUAL | Supabase → Auth → Email → disable "Confirm email" (or confirm test users manually) |
-| 10 | C-1 | ⚠️ VERIFY | Google Cloud Console → OAuth client → confirm `https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback` in Authorized Redirect URIs |
-| 11 | B-4 / B-5 | ✅ DONE (D-4) | Supabase already accepts both Vercel callback URLs; Site URL may still need updating if Google OAuth redirects wrong origin |
+| 3 | B-1 / B-2 / B-3 | ✅ N/A | Email auth now uses Supabase native OTP — no Resend, no server-side Vercel secrets |
+| 4 | Code changes | ✅ DONE | Auth rearchitected: Supabase OTP + secret code gate. Committed and pushed. |
+| 5 | D-1 | ⚠️ MANUAL | Vercel → Project Settings → General → Deployment Protection → disable |
+| 6 | D-2 | ⚠️ MANUAL | Confirm/fix which domain is the RBot production URL in Vercel |
+| 7 | E-1 | ⚠️ MANUAL | Supabase → Auth → Providers → Email → enable "Enable Email OTP" |
+| 8 | C-2 / D-4 | ✅ N/A | Email confirmation no longer blocks auth — `verifyOtp` confirms in one step |
+| 9 | C-1 | ⚠️ VERIFY | Google Cloud Console → OAuth client → confirm `https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback` in Authorized Redirect URIs |
+| 10 | B-4 / B-5 | ✅ DONE (D-4) | Supabase already accepts both Vercel callback URLs |
 
 After adding or changing Vercel environment variables, **redeploy Vercel** so the Next.js API routes pick up the new server-only values.

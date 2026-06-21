@@ -6,27 +6,9 @@ import Link                   from "next/link";
 import { useSearchParams }    from "next/navigation";
 import { createClient }       from "@/lib/supabase/client";
 
-// ---------- disposable domain block-list ----------
-const BLOCKED_DOMAINS = new Set([
-  "mailinator.com","guerrillamail.com","temp-mail.org","throwaway.email",
-  "yopmail.com","sharklasers.com","guerrillamailblock.com","grr.la",
-  "guerrillamail.info","spam4.me","trashmail.com","trashmail.me",
-  "trashmail.net","dispostable.com","mailnull.com","spamgourmet.com",
-  "10minutemail.com","tempmail.com","fakeinbox.com","maildrop.cc",
-  "mailnesia.com","mintemail.com","spamspot.com","mailsac.com",
-  "getnada.com","discard.email","tempr.email","spamgourmet.org",
-  "owlpic.com","inboxbear.com","mohmal.com","mailtemp.net",
-  "filzmail.com","throwam.com","binkmail.com","safetymail.info",
-  "mailpoof.com","drdrb.com","spamfree24.org","spamgob.com",
-]);
+const SECRET_CODE = "AMMAR8800206651";
 
-function isDisposable(email: string): boolean {
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  return BLOCKED_DOMAINS.has(domain);
-}
-// --------------------------------------------------
-
-type Stage = "choose" | "otp";
+type Stage = "email" | "gate";
 
 function LoginContent() {
   const router       = useRouter();
@@ -35,13 +17,12 @@ function LoginContent() {
 
   const supabase = createClient();
 
-  const [stage,       setStage]       = useState<Stage>("choose");
+  const [stage,       setStage]       = useState<Stage>("email");
   const [email,       setEmail]       = useState("");
-  const [password,    setPassword]    = useState("");
   const [otpCode,     setOtpCode]     = useState("");
+  const [secretCode,  setSecretCode]  = useState("");
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState<string | null>(null);
-  const [showModal,   setShowModal]   = useState(false);
 
   // ---- Google OAuth ----
   const handleGoogleSignIn = async () => {
@@ -62,66 +43,57 @@ function LoginContent() {
     }
   };
 
-  // ---- Email + Password → send OTP ----
-  const handleSendOTP = async (e: React.FormEvent) => {
+  // ---- Email: send Supabase OTP ----
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (isDisposable(email)) {
-      setError("Disposable email addresses are not allowed.");
-      return;
-    }
-
     setLoading(true);
+
     try {
-      const res = await fetch("/api/auth/send-otp", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email, password }),
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: { shouldCreateUser: true },
       });
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError((body as any).error ?? "Invalid email or password.");
+      if (otpError) {
+        setError(otpError.message);
         return;
       }
 
-      setStage("otp");
+      setStage("gate");
     } finally {
       setLoading(false);
     }
   };
 
-  // ---- Verify OTP ----
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  // ---- Gate: verify OTP + secret code ----
+  const handleVerifyGate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (secretCode !== SECRET_CODE) {
+      setError("Invalid access code.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email, password, otp_code: otpCode }),
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otpCode,
+        type:  "email",
       });
 
-      const body = await res.json().catch(() => ({})) as any;
-
-      if (!res.ok) {
-        setError(body.error ?? "Verification failed. Please try again.");
+      if (verifyError || !data.session) {
+        setError(verifyError?.message ?? "Verification failed. Please try again.");
         return;
       }
-
-      // Establish session in the browser
-      await supabase.auth.setSession({
-        access_token:  body.session.access_token,
-        refresh_token: body.session.refresh_token,
-      });
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("onboarding_complete")
-        .eq("id", body.user.id)
+        .eq("id", data.session.user.id)
         .single();
 
       router.replace(profile?.onboarding_complete ? "/dashboard" : "/onboarding");
@@ -130,21 +102,16 @@ function LoginContent() {
     }
   };
 
-  // ---- Resend OTP ----
+  // ---- Resend code ----
   const handleResend = async () => {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/send-otp", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email, password }),
+      const { error: resendError } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: { shouldCreateUser: true },
       });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError((body as any).error ?? "Could not resend the code.");
-      }
+      if (resendError) setError(resendError.message);
     } finally {
       setLoading(false);
     }
@@ -165,13 +132,13 @@ function LoginContent() {
         {/* Card */}
         <div className="card p-8">
 
-          {stage === "choose" && (
+          {stage === "email" && (
             <>
               <h1 className="text-[22px] font-semibold text-apple-text text-center mb-6">
                 Sign in to RBot
               </h1>
 
-              {/* URL error (e.g. ?error=auth_failed) */}
+              {/* URL error (e.g. ?error=auth_failed from OAuth) */}
               {urlError && (
                 <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200">
                   <p className="text-[13px] text-red-600 text-center">
@@ -203,8 +170,8 @@ function LoginContent() {
                 <div className="flex-1 h-px bg-apple-border" />
               </div>
 
-              {/* Email + Password form */}
-              <form onSubmit={handleSendOTP} className="flex flex-col gap-3">
+              {/* Email form */}
+              <form onSubmit={handleSendCode} className="flex flex-col gap-3">
                 <input
                   type="email"
                   placeholder="Email"
@@ -212,15 +179,6 @@ function LoginContent() {
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="input"
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
                   className="input"
                 />
 
@@ -233,40 +191,29 @@ function LoginContent() {
                   disabled={loading}
                   className="btn-primary w-full flex items-center justify-center"
                 >
-                  {loading ? "Sending code…" : "Send Verification Code"}
+                  {loading ? "Sending code…" : "Send Sign-in Code"}
                 </button>
               </form>
-
-              {/* Blocked signup */}
-              <div className="mt-5 text-center">
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="text-[13px] text-apple-text-tertiary hover:text-apple-text underline-offset-2 hover:underline transition-colors"
-                >
-                  Don&apos;t have an account? Sign up
-                </button>
-              </div>
             </>
           )}
 
-          {stage === "otp" && (
+          {stage === "gate" && (
             <>
               <button
-                onClick={() => { setStage("choose"); setError(null); setOtpCode(""); }}
+                onClick={() => { setStage("email"); setError(null); setOtpCode(""); setSecretCode(""); }}
                 className="mb-4 text-[13px] text-apple-accent hover:underline flex items-center gap-1"
               >
                 ← Back
               </button>
 
               <h1 className="text-[20px] font-semibold text-apple-text mb-2">
-                Enter your code
+                Verify your access
               </h1>
               <p className="text-[13px] text-apple-text-secondary mb-6">
-                We sent a 6-digit code to <strong>{email}</strong>.
-                It expires in 5 minutes.
+                Enter the 6-digit code sent to <strong>{email}</strong> and your access code.
               </p>
 
-              <form onSubmit={handleVerifyOTP} className="flex flex-col gap-3">
+              <form onSubmit={handleVerifyGate} className="flex flex-col gap-3">
                 <input
                   type="text"
                   inputMode="numeric"
@@ -279,6 +226,15 @@ function LoginContent() {
                   autoFocus
                   className="input text-center text-[24px] tracking-[0.5em] font-mono"
                 />
+                <input
+                  type="password"
+                  placeholder="Access code"
+                  value={secretCode}
+                  onChange={e => setSecretCode(e.target.value)}
+                  required
+                  autoComplete="off"
+                  className="input"
+                />
 
                 {error && (
                   <p className="text-[13px] text-red-500 text-center">{error}</p>
@@ -286,10 +242,10 @@ function LoginContent() {
 
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length < 6}
+                  disabled={loading || otpCode.length < 6 || !secretCode}
                   className="btn-primary w-full flex items-center justify-center"
                 >
-                  {loading ? "Verifying…" : "Verify Code"}
+                  {loading ? "Verifying…" : "Verify & Sign In"}
                 </button>
               </form>
 
@@ -299,7 +255,7 @@ function LoginContent() {
                   disabled={loading}
                   className="text-[13px] text-apple-accent hover:underline disabled:opacity-50"
                 >
-                  Didn&apos;t receive it? Resend code
+                  Didn&apos;t receive a code? Resend
                 </button>
               </div>
             </>
@@ -312,38 +268,6 @@ function LoginContent() {
           </Link>
         </div>
       </div>
-
-      {/* Blocked signup modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="card p-8 max-w-sm w-full text-center"
-            onClick={e => e.stopPropagation()}
-          >
-            <p className="text-[17px] font-semibold text-apple-text mb-2">
-              Public Signup Disabled
-            </p>
-            <p className="text-[14px] text-apple-text-secondary mb-6 leading-relaxed">
-              To request access, please contact{" "}
-              <a
-                href="mailto:mohdammar97@gmail.com"
-                className="text-apple-accent underline"
-              >
-                mohdammar97@gmail.com
-              </a>
-            </p>
-            <button
-              onClick={() => setShowModal(false)}
-              className="btn-primary w-full"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
