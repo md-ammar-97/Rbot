@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter }          from "next/navigation";
 import Link                   from "next/link";
 import { useSearchParams }    from "next/navigation";
 import { createClient }       from "@/lib/supabase/client";
@@ -9,7 +8,6 @@ import { createClient }       from "@/lib/supabase/client";
 type Stage = "email" | "gate";
 
 function LoginContent() {
-  const router       = useRouter();
   const searchParams = useSearchParams();
   const urlError     = searchParams.get("error");
 
@@ -103,7 +101,7 @@ function LoginContent() {
         .eq("id", authData.session.user.id)
         .single();
 
-      router.replace(profile?.onboarding_complete ? "/dashboard" : "/onboarding");
+      window.location.href = profile?.onboarding_complete ? "/dashboard" : "/onboarding";
     } finally {
       setLoading(false);
     }

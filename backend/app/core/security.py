@@ -1,22 +1,28 @@
+import logging
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.supabase import supabase_admin
 
 bearer = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
     """Validate Supabase JWT and return the user object."""
+    token = credentials.credentials
     try:
-        result = supabase_admin.auth.get_user(credentials.credentials)
+        result = supabase_admin.auth.get_user(token)
         if not result.user:
+            logger.error("auth.get_user returned no user (token prefix: %s...)", token[:20])
             raise HTTPException(status_code=401, detail="Invalid token")
         # Attach the raw token so downstream code can build user-scoped clients
-        result.user.access_token = credentials.credentials
+        result.user.access_token = token
         return result.user
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
+        logger.error("Auth validation failed — %s: %s (token prefix: %s...)",
+                     type(exc).__name__, exc, token[:20])
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
