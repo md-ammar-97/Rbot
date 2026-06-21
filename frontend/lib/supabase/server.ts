@@ -8,10 +8,10 @@ export const createClient = () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll:  () => cookieStore.getAll(),
-        setAll: (cs) =>
+        getAll: () => cookieStore.getAll(),
+        setAll: (cs: Array<{ name: string; value: string; options?: Record<string, unknown> }>) =>
           cs.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
+            cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2])
           ),
       },
     }
