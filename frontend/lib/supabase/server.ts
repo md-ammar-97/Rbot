@@ -9,10 +9,15 @@ export const createClient = () => {
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
-        setAll: (cs: Array<{ name: string; value: string; options?: Record<string, unknown> }>) =>
-          cs.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2])
-          ),
+        setAll: (cs: Array<{ name: string; value: string; options?: Record<string, unknown> }>) => {
+          cs.forEach(({ name, value, options }) => {
+            try {
+              cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2]);
+            } catch {
+              // Server Components cannot write cookies; middleware refreshes them.
+            }
+          });
+        },
       },
     }
   );

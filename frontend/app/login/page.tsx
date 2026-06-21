@@ -45,13 +45,21 @@ function LoginContent() {
 
   // ---- Google OAuth ----
   const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
+    setError(null);
+    setLoading(true);
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
         scopes:     "openid email profile",
       },
     });
+
+    if (oauthError) {
+      setError("Google sign-in is not available right now.");
+      setLoading(false);
+    }
   };
 
   // ---- Email + Password → send OTP ----
@@ -127,11 +135,16 @@ function LoginContent() {
     setError(null);
     setLoading(true);
     try {
-      await fetch("/api/auth/send-otp", {
+      const res = await fetch("/api/auth/send-otp", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ email, password }),
       });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError((body as any).error ?? "Could not resend the code.");
+      }
     } finally {
       setLoading(false);
     }
@@ -172,11 +185,12 @@ function LoginContent() {
               {/* Google */}
               <button
                 onClick={handleGoogleSignIn}
+                disabled={loading}
                 className="w-full h-[50px] flex items-center justify-center gap-3
                            bg-white border border-apple-border rounded-xl
                            text-[15px] font-medium text-apple-text
                            hover:bg-apple-surface active:scale-[0.98]
-                           transition-all duration-150"
+                           transition-all duration-150 disabled:opacity-60"
               >
                 <GoogleIcon />
                 Continue with Google

@@ -6,9 +6,15 @@ from app.api import auth, profile, intake, recovery, jobs, apply, outreach, trac
 
 app = FastAPI(title="RBot API", version="1.0.0", docs_url="/docs")
 
+cors_origins = [
+    origin.strip()
+    for origin in settings.frontend_url.split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=cors_origins or ["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
