@@ -70,38 +70,6 @@ services:
           name: rbot-redis
           property: connectionString
 
-  # ── n8n Workflow Automation (self-hosted) ────────────────────────────────────
-  - type: web
-    name: rbot-n8n
-    runtime: docker
-    rootDir: n8n
-    dockerfilePath: ./Dockerfile
-    disk:
-      name: n8n-data
-      mountPath: /home/node/.n8n
-      sizeGB: 1
-    envVars:
-      - key: N8N_HOST
-        value: 0.0.0.0
-      - key: N8N_PROTOCOL
-        value: https
-      - key: N8N_PORT
-        value: "5678"
-      - key: WEBHOOK_URL
-        sync: false        # set to https://rbot-n8n.onrender.com after first deploy
-      - key: N8N_BASIC_AUTH_ACTIVE
-        value: "true"
-      - key: N8N_BASIC_AUTH_USER
-        sync: false        # pick any username
-      - key: N8N_BASIC_AUTH_PASSWORD
-        sync: false        # pick a strong password
-      - key: RBOT_API_URL
-        sync: false        # https://rbot-api.onrender.com after API is deployed
-      - key: INTERNAL_API_KEY
-        sync: false        # same value as backend INTERNAL_API_KEY
-      - key: N8N_ENCRYPTION_KEY
-        sync: false        # any random 32-char string for encrypting credentials
-
   # ── Redis ─────────────────────────────────────────────────────────────────────
   - type: redis
     name: rbot-redis
