@@ -18,6 +18,8 @@ interface Props {
   recoveryStatus: string;
 }
 
+const TIMEOUT_SECONDS = 120;
+
 export default function RecoveryStep({ userId, recoveryStatus }: Props) {
   const router    = useRouter();
   const [status,    setStatus]    = useState(recoveryStatus);
@@ -25,7 +27,8 @@ export default function RecoveryStep({ userId, recoveryStatus }: Props) {
   const [caseId,    setCaseId]    = useState<string | null>(null);
   const [answers,   setAnswers]   = useState<Record<string, string>>({});
   const [saving,    setSaving]    = useState(false);
-  const [polling,   setPolling]   = useState(false);
+  const [elapsed,   setElapsed]   = useState(0);
+  const timedOut = status === "pending" && elapsed >= TIMEOUT_SECONDS;
 
   const fetchStatus = useCallback(async () => {
     const token = await _getToken();
@@ -52,15 +55,16 @@ export default function RecoveryStep({ userId, recoveryStatus }: Props) {
     fetchQuestions();
   }, [fetchStatus, fetchQuestions]);
 
-  // Poll for completion every 5 seconds
   useEffect(() => {
-    if (status === "complete") return;
+    if (status !== "pending") return;
     const id = setInterval(async () => {
+      setElapsed((e) => e + 5);
       const s = await fetchStatus();
       if (s === "complete") {
         clearInterval(id);
         await fetchQuestions();
       } else if (s === "in_progress") {
+        clearInterval(id);
         await fetchQuestions();
       }
     }, 5000);
@@ -98,11 +102,39 @@ export default function RecoveryStep({ userId, recoveryStatus }: Props) {
   };
 
   if (status === "pending") {
+    if (timedOut) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-[17px] text-apple-text font-medium mb-2">
+            Analysis is taking longer than expected.
+          </p>
+          <p className="text-[14px] text-apple-text-secondary mb-6">
+            This usually means no resume was uploaded, or the processing pipeline is starting up.
+            You can continue to the dashboard and your profile will complete in the background.
+          </p>
+          <button onClick={finishOnboarding} className="btn-primary w-full text-[17px] mb-3">
+            Continue to Dashboard →
+          </button>
+          <button
+            onClick={() => { setElapsed(0); fetchStatus(); }}
+            className="btn-secondary w-full text-[15px]"
+          >
+            Check again
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="text-center py-8">
         <div className="w-10 h-10 border-2 border-apple-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-[17px] text-apple-text font-medium">Analysing your resume…</p>
         <p className="text-[14px] text-apple-text-secondary mt-2">This takes 15–30 seconds.</p>
+        {elapsed >= 30 && (
+          <p className="text-[13px] text-apple-text-tertiary mt-4">
+            Still working… ({TIMEOUT_SECONDS - elapsed}s before timeout)
+          </p>
+        )}
       </div>
     );
   }

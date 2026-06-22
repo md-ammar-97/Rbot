@@ -41,10 +41,10 @@ services:
     name: rbot-celery
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && playwright install chromium
+    buildCommand: pip install -r requirements.txt
     startCommand: >
       celery -A app.workers.celery_app worker --loglevel=info
-      -Q ingestion,profile,recovery,discovery,scoring,drafting -c 4
+      -Q ingestion,profile,recovery,discovery,scoring,drafting -c 2
     envVars:
       - key: SUPABASE_URL
         sync: false

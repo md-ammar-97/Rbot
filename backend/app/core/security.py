@@ -1,9 +1,18 @@
 import logging
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.supabase import supabase_admin
 
-bearer = HTTPBearer()
+
+class _StrictBearer(HTTPBearer):
+    async def __call__(self, request: Request):
+        try:
+            return await super().__call__(request)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+bearer = _StrictBearer()
 logger = logging.getLogger(__name__)
 
 

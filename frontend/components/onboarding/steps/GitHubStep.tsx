@@ -3,11 +3,12 @@
 import { useState } from "react";
 
 interface Props {
-  userId: string;
-  onNext: () => void;
+  userId:     string;
+  onNext:     () => void;
+  onComplete: () => void;
 }
 
-export default function GitHubStep({ userId, onNext }: Props) {
+export default function GitHubStep({ userId, onNext, onComplete }: Props) {
   const [owner,   setOwner]   = useState("");
   const [repo,    setRepo]    = useState("");
   const [status,  setStatus]  = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -30,7 +31,7 @@ export default function GitHubStep({ userId, onNext }: Props) {
       if (!resp.ok) throw new Error((await resp.json()).detail || "Failed");
       setStatus("done");
       setMessage(`${owner}/${repo} connected. Extracting evidence…`);
-      setTimeout(onNext, 1500);
+      setTimeout(onComplete, 1500);
     } catch (e: unknown) {
       setStatus("error");
       setMessage(e instanceof Error ? e.message : "Failed to connect repository.");

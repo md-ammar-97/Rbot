@@ -3,11 +3,12 @@
 import { useState, useRef } from "react";
 
 interface Props {
-  userId: string;
-  onNext: () => void;
+  userId:     string;
+  onNext:     () => void;
+  onComplete: () => void;
 }
 
-export default function ResumeUploadStep({ userId, onNext }: Props) {
+export default function ResumeUploadStep({ userId, onNext, onComplete }: Props) {
   const [status,   setStatus]   = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [message,  setMessage]  = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,7 +36,7 @@ export default function ResumeUploadStep({ userId, onNext }: Props) {
 
       setStatus("done");
       setMessage("Resume uploaded. Parsing in progress…");
-      setTimeout(onNext, 1500);
+      setTimeout(onComplete, 1500);
     } catch (e: unknown) {
       setStatus("error");
       setMessage(e instanceof Error ? e.message : "Upload failed. Please try again.");
