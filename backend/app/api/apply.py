@@ -39,7 +39,7 @@ async def list_sessions(user=Depends(get_current_user)):
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str, user=Depends(get_current_user)):
     result = supabase_admin.table("apply_sessions").select("*") \
-             .eq("id", session_id).eq("user_id", user.id).single().execute()
+             .eq("id", session_id).eq("user_id", user.id).maybe_single().execute()
     if not result.data:
         raise HTTPException(404, "Session not found.")
     return {"data": result.data}
@@ -49,7 +49,7 @@ async def get_session(session_id: str, user=Depends(get_current_user)):
 async def rollback_session(session_id: str, user=Depends(get_current_user)):
     """Rollback an auto-apply submission within the 60-second window."""
     session = supabase_admin.table("apply_sessions").select("*") \
-              .eq("id", session_id).eq("user_id", user.id).single().execute().data
+              .eq("id", session_id).eq("user_id", user.id).maybe_single().execute().data
 
     if not session:
         raise HTTPException(404, "Session not found.")

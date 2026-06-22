@@ -11,7 +11,10 @@ router = APIRouter()
 async def recovery_status(user=Depends(get_current_user)):
     profile = supabase_admin.table("profiles") \
               .select("recovery_status, recovery_completed_at, onboarding_complete") \
-              .eq("id", user.id).single().execute()
+              .eq("id", user.id).maybe_single().execute()
+
+    if not profile.data:
+        raise HTTPException(404, "Profile not found.")
 
     case = supabase_admin.table("recovery_cases") \
            .select("id, status, diagnosis, questions_answered_count, created_at") \
@@ -71,7 +74,7 @@ class AnswerPayload(BaseModel):
 async def submit_answer(payload: AnswerPayload, user=Depends(get_current_user)):
     # Verify case belongs to this user
     case = supabase_admin.table("recovery_cases").select("id, user_id") \
-           .eq("id", payload.case_id).single().execute()
+           .eq("id", payload.case_id).maybe_single().execute()
     if not case.data or case.data["user_id"] != user.id:
         raise HTTPException(403, "Case not found or access denied.")
 

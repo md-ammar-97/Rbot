@@ -1,316 +1,229 @@
-# RBot — Issues Log
+# RBot Platform — Issues Log
 
 **Last updated:** 2026-06-21  
-**Overall auth status:** Email auth fully rearchitected — now uses Supabase native OTP (no Resend, no custom API routes, no server-side Vercel secrets). Vercel only needs 3 public env vars. Remaining blockers: Vercel deployment protection (D-1) and Supabase "Enable Email OTP" setting (E-1).
+**Test run:** Live testing against https://rbot-api.onrender.com · https://rbot-mu.vercel.app  
+**Test account:** mohdammar97+test@gmail.com  
 
 ---
 
-## Section A — Code-Level Bugs (Previous Chat — Fixed)
+## Summary
 
-These were identified and fixed in code during the previous session. All are resolved in the current codebase on `master`.
-
----
-
-### A-1 · PKCE Double-Exchange Race Condition
-**Status:** FIXED — `f1e9f74`  
-**Affected:** Google OAuth  
-**Symptom:** OAuth callback returned `auth_failed` intermittently. The PKCE code verifier was already consumed by the time our manual `exchangeCodeForSession` ran.  
-**Root cause:** Supabase's browser client has `detectSessionInUrl: true` by default. On page load it auto-detects the `?code=` param in the URL and tries to exchange it simultaneously with our `/auth/callback` route handler — whichever runs second fails because the code is one-time-use.  
-**Fix:** Set `detectSessionInUrl: false` in `frontend/lib/supabase/client.ts`. Only the server-side `/auth/callback` route now calls `exchangeCodeForSession`.
+| ID | Severity | Status | Area | Title |
+|----|----------|--------|------|-------|
+| B-1 | Critical | ✅ Fixed | Backend Auth | All authenticated endpoints returned 401 |
+| B-2 | High | 🔴 Open | Backend | Invalid UUID path params crash with 500 instead of 404 |
+| B-3 | High | 🔴 Open | Backend | Recovery endpoints 500 when user has no profile row |
+| B-4 | High | 🔴 Open | Backend | `GET /tracker/` and `POST /tracker/note` return 500 |
+| B-5 | Medium | 🔴 Open | Backend | `GET /jobs/{id}` 500 on nonexistent job (same class as B-2) |
+| F-1 | Low | 🔴 Open | Frontend/API | Missing Bearer header returns 403, not 401 |
 
 ---
 
-### A-2 · Middleware Intercepting the OAuth Callback Route
-**Status:** FIXED — matcher config  
-**Affected:** Google OAuth  
-**Symptom:** After Google redirected back to `/auth/callback`, the middleware ran `getUser()` (which failed — no session yet), and redirected the user to `/login` before the callback could exchange the code.  
-**Root cause:** The middleware matcher covered all routes including `/auth/callback`.  
-**Fix:** Updated `config.matcher` in `frontend/middleware.ts` to exclude `api` and `auth/callback`:
+## B-1 — All Authenticated Endpoints Returned 401 ✅ FIXED
+
+**Severity:** Critical  
+**Deployed:** 2026-06-21T23:06:05Z (commit `c75c64a`)  
+**Affected:** Every protected API endpoint
+
+**Root cause:**  
+In `backend/app/core/security.py`, after `supabase_admin.auth.get_user(token)` **succeeded**, the next line was:
+```python
+result.user.access_token = token
 ```
-matcher: ["/((?!_next/static|_next/image|favicon.ico|api|auth/callback).*)"]
+`gotrue-py` v2 uses Pydantic v2, which raises `ValueError` on unknown field assignment. The `User` model has no `access_token` field. This `ValueError` was caught by the bare `except Exception` handler and returned as HTTP 401. The JWT was **always valid** — auth succeeded but the post-auth assignment always crashed.
+
+**Evidence from Render logs:**
 ```
+Auth validation failed — ValueError: "User" object has no field "access_token"
+  (token prefix: eyJhbGciOiJFUzI1NiIs...)
+```
+This appeared on every single authenticated request.
+
+**Fix:** Removed `result.user.access_token = token`. No downstream handlers use `user.access_token` — all use `user.id` only.
 
 ---
 
-### A-3 · Session Cookies Lost on Redirect
-**Status:** FIXED — `743d194`  
-**Affected:** Google OAuth  
-**Symptom:** After `exchangeCodeForSession` succeeded, the browser arrived at `/onboarding` or `/dashboard` with no session — immediately redirected back to `/login`.  
-**Root cause:** `setAll` wrote session cookies to a `NextResponse.next()` object. When we then returned a `NextResponse.redirect()`, that response object was different — it didn't carry the cookies.  
-**Fix:** Cookie-sink pattern in `frontend/app/auth/callback/route.ts` — after exchange, iterate `cookieSink.cookies.getAll()` and copy each cookie onto the `finalResponse` redirect.
+## B-2 — Invalid UUID Path Params Crash with 500 Instead of 404
+
+**Severity:** High  
+**Status:** Open  
+**Affected endpoints:**
+- `GET /jobs/{job_id}`
+- `GET /jobs/{job_id}/artifacts`
+- `PATCH /tracker/{item_id}/status`
+- `GET /tracker/{item_id}/events`
+- `GET /apply/sessions/{session_id}`
+- `POST /apply/sessions/{session_id}/rollback`
+
+**Observed:** All return `500 Internal Server Error` when given a non-UUID string like `nonexistent-session-id`.
+
+**Root cause from Render logs:**
+```
+postgrest.exceptions.APIError: {
+  'code': '22P02',
+  'message': 'invalid input syntax for type uuid: "nonexistent-session-id"'
+}
+  File "backend/app/api/apply.py", line 52, in rollback_session
+  File "backend/app/api/tracker.py", line 32, in update_status
+  File "backend/app/api/tracker.py", line 59, in get_events
+```
+Path parameters are passed directly to `.eq("id", ...)` without UUID format validation. The `APIError` is unhandled, so FastAPI returns 500.
+
+**Expected:** 404  
+**Reproduction:** `GET /apply/sessions/not-a-uuid` with valid Bearer token → 500
+
+**Fix:** Wrap PostgREST single-row queries in try/except and return 404:
+```python
+try:
+    result = supabase_admin.table("apply_sessions").select("*") \
+             .eq("id", session_id).eq("user_id", user.id).single().execute()
+except Exception:
+    raise HTTPException(404, "Session not found.")
+```
+**Files:** `apply.py:40,52` · `tracker.py:32,59` · `jobs.py:44-47,78-80`
 
 ---
 
-### A-4 · TypeScript Type Errors in `setAll` Callbacks
-**Status:** FIXED — `1dccbda` `3fcda6c` `2f634b9` `18a26da`  
-**Affected:** Build / TypeScript compilation  
-**Symptom:** Multiple TS errors: `Parameter 'cs' implicitly has an 'any' type` in middleware, server client, and auth callback.  
-**Root cause:** `@supabase/ssr`'s `setAll` callback parameter wasn't inferred automatically in strict mode.  
-**Fix:** Added explicit type annotation `cs: Array<{ name: string; value: string; options?: Record<string, unknown> }>` in all three files.
+## B-3 — Recovery Endpoints Return 500 When User Has No Profile Row
 
----
+**Severity:** High  
+**Status:** Open  
+**Affected:** `GET /recovery/status` · `GET /recovery/questions` · `GET /recovery/diagnosis` · `GET /recovery/baseline`
 
-### A-5 · Client-Side PKCE Exchange Attempt
-**Status:** REVERTED — `d2d4dc1`  
-**Affected:** Google OAuth  
-**Symptom:** Auth callback was rewritten as a client-side page component to use the browser's Supabase client for `exchangeCodeForSession`. This created its own race (the browser rendered, auto-detection ran, etc.).  
-**Resolution:** Reverted back to a Next.js Route Handler (`route.ts`) doing the exchange server-side, which is the correct pattern for Supabase SSR.
+**Observed:** All four return `500 Internal Server Error` for the test account.
 
----
+**Root cause:** `recovery.py → recovery_status()` calls `.single()` on the profiles table:
+```python
+profile = supabase_admin.table("profiles") \
+          .select("...").eq("id", user.id).single().execute()
+```
+PostgREST `.single()` raises `APIError` when 0 rows are returned. The test user was created via OTP flow but may not have a `profiles` row if the `on_user_create` Supabase trigger is missing or failed.
 
-### A-6 · Temporary Debug UI in Auth Callback
-**Status:** REMOVED — `efae485`  
-**Affected:** Google OAuth debugging  
-**What it was:** Converted `/auth/callback` into a page that rendered the raw `exchangeCodeForSession` error to the screen (instead of redirecting) so we could read it during debugging.  
-**Resolution:** Debug page removed once the underlying issues (A-1, A-2, A-3) were fixed.
+**Impact:** Any newly created user whose profile row isn't seeded will see 500 errors on all recovery endpoints, breaking onboarding at Step 4.
 
----
-
-### A-7 · Email Identity / Email Confirmation for Password Login
-**Status:** FIXED — `3373a0b`  
-**Affected:** Email + OTP login  
-**Symptom:** `signInWithPassword` in the `send-otp` route returned an error even for valid credentials.  
-**Root cause:** Supabase required email confirmation before allowing password sign-in, and/or the user's account was created via Google OAuth (no password set) while the email identity needed explicit linking.  
-**Fix:** Resolved in commit `3373a0b` — server-side OAuth callback + proper email identity handling for password-based login.
-
----
-
-## Section B — Configuration Issues (Current — Open)
-
-These are **not code bugs** — the code is correct. Login is broken because required env vars or Supabase/Google settings haven't been configured for the production deployment.
-
----
-
-### B-1 · `RESEND_API_KEY` Missing from Vercel
-**Status:** N/A — 2026-06-21  
-Email auth rearchitected to use Supabase native OTP. Resend is no longer used for auth. Custom `/api/auth/send-otp` route deleted.
-
----
-
-### B-2 · `OTP_FROM_EMAIL` Missing from Vercel
-**Status:** N/A — 2026-06-21  
-Same as B-1 — Resend no longer involved in email login.
-
----
-
-### B-3 · `SUPABASE_SERVICE_KEY` Missing from Vercel
-**Status:** N/A — 2026-06-21  
-Custom `/api/auth/send-otp` and `/api/auth/verify-otp` routes deleted. Vercel no longer needs any server-side Supabase keys.
-
----
-
-### B-4 · Supabase Redirect URL Not Set for Production Vercel URL
-**Status:** OPEN  
-**Affected:** Google OAuth  
-**Symptom:** Google OAuth redirect fails — Supabase rejects the callback because the redirect URL is not in the allowlist.  
-**Fix:** Supabase dashboard → Authentication → URL Configuration:
-- **Redirect URLs:** add `https://<your-vercel-url>/auth/callback`
-
----
-
-### B-5 · Supabase Site URL Still Pointing to Localhost
-**Status:** OPEN (likely)  
-**Affected:** Google OAuth  
-**Symptom:** After successful Google auth, Supabase redirects to `http://localhost:3000/auth/callback` instead of the production URL.  
-**Fix:** Supabase dashboard → Authentication → URL Configuration:
-- **Site URL:** set to `https://<your-vercel-url>`
-
----
-
-### B-6 · `FRONTEND_URL` on Render Set to Placeholder
-**Status:** FIXED — 2026-06-21  
-**Affected:** CORS on backend API calls  
-**Symptom:** Once users are logged in and make API calls from the frontend, the FastAPI backend may reject requests because `FRONTEND_URL=http://placeholder.com` doesn't match the actual origin.  
-**Fix applied:** `APP_ENV=production` and `FRONTEND_URL=https://rbot-gzerf4kai-ammar-s-projects97.vercel.app` set via Render MCP. Update to custom domain later if added.
-
----
-
-## Section C — Unverified / Needs Investigation
-
-These haven't been confirmed as issues but may cause failures once B-1 through B-6 are resolved.
-
----
-
-### C-1 · Google Cloud Console Authorized Redirect URIs
-**Status:** UNVERIFIED  
-**Risk:** If `https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback` is not in the Google OAuth client's authorized redirect URIs, Google will reject the OAuth flow entirely.  
-**Check:** Google Cloud Console → APIs & Services → Credentials → your OAuth client → Authorized redirect URIs → confirm `https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback` is listed.
-
----
-
-### C-2 · Supabase "Confirm Email" Setting
-**Status:** UNVERIFIED  
-**Risk:** If Supabase Auth has "Confirm email" enabled, newly invited users cannot sign in with email+password until they click a confirmation link. The `signInWithPassword` call in `send-otp` will fail with `Email not confirmed`.  
-**Check:** Supabase dashboard → Authentication → Providers → Email → verify "Confirm email" is **disabled** (or that all test users have confirmed emails).
-
----
-
-### C-3 · `otp_verifications` Table Existence
-**Status:** VERIFIED — table exists with all required columns  
-**Risk:** The `otp_verifications` table was applied via Supabase MCP in the previous session. If for any reason the migration didn't apply, all OTP routes will fail with a Postgres error on the table read/write.  
-**Check:** Supabase dashboard → Table Editor → confirm `otp_verifications` table exists with columns: `id`, `user_id`, `email`, `otp_code`, `expires_at`, `used`, `attempts`, `created_at`.  
-**Recovery SQL (if missing):**
-```sql
-CREATE TABLE public.otp_verifications (
-    id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id    uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    email      text        NOT NULL,
-    otp_code   text        NOT NULL,
-    expires_at timestamptz NOT NULL,
-    used       bool        NOT NULL DEFAULT false,
-    attempts   int         NOT NULL DEFAULT 0,
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_otp_email_active ON otp_verifications(email, used, expires_at);
-ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
+**Fix (two-part):**
+1. In Supabase dashboard, verify a trigger exists: `INSERT INTO public.profiles (id) VALUES (NEW.id)` on `auth.users INSERT`.
+2. In `recovery.py`, replace `.single()` with `.maybe_single()` + guard:
+```python
+profile = supabase_admin.table("profiles") \
+          .select("...").eq("id", user.id).maybe_single().execute()
+if not profile.data:
+    raise HTTPException(404, "Profile not found.")
 ```
 
 ---
 
-## Section E — New Architecture Issues (2026-06-21)
+## B-4 — `GET /tracker/` and `POST /tracker/note` Return 500
+
+**Severity:** High  
+**Status:** Open  
+**Affected:** `GET /tracker/` · `POST /tracker/note`
+
+**Observed:** Both return `500 Internal Server Error` for the test account, even though neither uses `.single()`.
+
+**Root cause (suspected):** The tracker query uses PostgREST foreign table join syntax:
+```python
+supabase_admin.table("tracker_items").select(
+    "..., jobs(id, title, ...), job_scores(fit_score, ...)"
+)
+```
+If `tracker_items`, `jobs`, or `job_scores` tables are missing from the production DB schema, or foreign key relationships are not set up, PostgREST rejects the query. This suggests one or more DB migrations have not been run in production.
+
+`POST /tracker/note` calls `add_note()` in `services/tracker.py` which likely inserts into `tracker_notes` — same missing-table issue.
+
+**Fix:** Verify all migrations have run in production. In Supabase dashboard, confirm `tracker_items`, `tracker_events`, `tracker_notes` tables exist with FK to `jobs` and `job_scores`.
 
 ---
 
-### E-1 · Supabase "Enable Email OTP" Must Be On
-**Status:** MANUAL CHECK NEEDED  
-**Affected:** Email login  
-**Risk:** `supabase.auth.signInWithOtp({ email })` sends a magic link by default if "Enable Email OTP" is off. Users would receive a click-link email instead of a 6-digit code, and `verifyOtp({ type: 'email' })` would not work.  
-**Fix:** Supabase dashboard → Authentication → Providers → Email → toggle **"Enable Email OTP"** ON.
+## B-5 — `GET /jobs/{id}` Returns 500 on Nonexistent Job
 
----
+**Severity:** Medium  
+**Status:** Open (same class as B-2)  
+**Affected:** `GET /jobs/{job_id}` · `GET /jobs/{job_id}/artifacts`
 
-## Section D - Current Investigation and Updates (2026-06-21)
+**Root cause:** `jobs.py → get_job()` uses `.single()`:
+```python
+job = supabase_admin.table("jobs").select("*").eq("id", job_id).single().execute()
+```
+When `job_id` doesn't exist, `.single()` throws APIError → unhandled → 500.
 
-This section records the latest investigation and local code changes made after reviewing all project Markdown files, auth code, Supabase state reachable from local keys, GitHub deployment metadata, and public deployed endpoints.
+**Expected:** 404 `"Job not found."`
 
----
-
-### D-1 - Latest Vercel Deployment Exists but Is Protected
-**Status:** VERIFIED BLOCKER  
-**Affected:** Google OAuth, Email + OTP login  
-**Finding:** GitHub deployment status shows the latest successful Vercel deployment target is:
-
-`https://rbot-gzerf4kai-ammar-s-projects97.vercel.app`
-
-Direct HTTP checks against `/`, `/login`, and `/api/auth/send-otp` return `401 Unauthorized` with Vercel SSO/protection headers. The app may be built, but public users cannot reach it.
-
-**Required fix:** In Vercel, disable deployment protection / SSO for the production deployment, or attach a public production domain to this project.
-
----
-
-### D-2 - Documented `https://rbot.vercel.app` Is Not the RBot App
-**Status:** VERIFIED BLOCKER  
-**Affected:** Google OAuth, Email + OTP login  
-**Finding:** `https://rbot.vercel.app` does not serve this Next.js app:
-- `/` returns an unrelated JavaScript file (`index.js`) containing IRC/Gitter code.
-- `/login` returns `404 Not Found`.
-
-**Root cause:** The documented/custom production URL is not attached to the current RBot Vercel deployment.
-
-**Required fix:** Either attach `rbot.vercel.app` or the intended custom domain to the RBot Vercel project, or update all production config to use the actual deployed URL.
-
----
-
-### D-3 - Render Backend Is Up but Production Env/CORS Are Wrong
-**Status:** FIXED — 2026-06-21  
-**Affected:** Authenticated frontend API calls after login  
-**Findings:**
-- `GET https://rbot-api.onrender.com/health` returns `200 OK`.
-- Response body reports `{"status":"ok","env":"development"}`, so Render is not running the intended `APP_ENV=production`.
-- CORS preflight from `https://rbot-gzerf4kai-ammar-s-projects97.vercel.app` returns `400 Bad Request`.
-- CORS preflight from `http://localhost:3000` returns `200 OK`, confirming Render is still configured for local frontend origin.
-
-**Local code update:** `backend/app/main.py` now accepts comma-separated origins in `FRONTEND_URL`, so production can allow the Vercel deployment URL and a custom domain without another code change.
-
-**Required fix:** In Render `rbot-api`, set:
-
-```env
-APP_ENV=production
-FRONTEND_URL=https://rbot-gzerf4kai-ammar-s-projects97.vercel.app
+**Fix:**
+```python
+job = supabase_admin.table("jobs").select("*").eq("id", job_id).maybe_single().execute()
+if not job.data:
+    raise HTTPException(404, "Job not found.")
 ```
 
-If a custom domain is attached later, use a comma-separated value:
+---
 
-```env
-FRONTEND_URL=https://rbot-gzerf4kai-ammar-s-projects97.vercel.app,https://your-custom-domain.com
+## F-1 — Missing Bearer Header Returns 403, Not 401
+
+**Severity:** Low  
+**Status:** Open (design decision)
+
+**Observed:** Requests with no `Authorization` header receive `403 {"detail":"Not authenticated"}`.  
+Requests with a present-but-invalid token correctly return `401 {"detail":"Invalid or expired token"}`.
+
+**Root cause:** FastAPI's built-in `HTTPBearer` dependency returns 403 for missing scheme. This is technically RFC-compliant but inconsistent for API consumers.
+
+**Fix (optional):**
+```python
+class StrictBearer(HTTPBearer):
+    async def __call__(self, request: Request):
+        try:
+            return await super().__call__(request)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+bearer = StrictBearer()
 ```
-
-Then redeploy `rbot-api`.
 
 ---
 
-### D-4 - Supabase Checks
-**Status:** PARTIALLY VERIFIED  
-**Affected:** Google OAuth, Email + OTP login  
-**Findings:**
-- Supabase Auth settings endpoint confirms Google provider is enabled.
-- Supabase Auth settings endpoint confirms Email provider is enabled.
-- Supabase OAuth authorize endpoint returns `302 Found` for both:
-  - `https://rbot-gzerf4kai-ammar-s-projects97.vercel.app/auth/callback`
-  - `https://rbot.vercel.app/auth/callback`
-- `otp_verifications` table exists and is readable with the service role key.
-- Supabase Auth settings show `mailer_autoconfirm: false`, meaning email/password users must be confirmed before password sign-in works.
-- Sampled Google-created user still shows only Google as provider in auth metadata, so password+OTP login will not work for that Google-only account unless an email/password identity is linked or a separate confirmed email/password user is created.
+## Confirmed Passing Tests
 
-**Local code update:** Added checked-in migration `backend/migrations/006_otp_verifications.sql` so the OTP table is no longer only an out-of-band Supabase change.
+### Auth & Security
+- ✅ CORS allows `rbot-mu.vercel.app` — headers: `access-control-allow-origin`, `allow-credentials: true`
+- ✅ CORS blocks `evil-site.com` → 400
+- ✅ All 13 protected endpoints return 403 with no Bearer header
+- ✅ All endpoints return 401 with a fake/garbage JWT
+- ✅ Token is validated against Supabase project `ogecgrhzretnkgehyifi`
 
-**Required fix:** For email+password login, ensure test users are confirmed and have an email/password identity. Either disable email confirmation for this private beta or invite/create confirmed users explicitly.
+### Frontend Routing (unauthenticated)
+- ✅ `/dashboard`, `/onboarding`, `/jobs`, `/tracker`, `/profile`, `/gate` → all 307 redirect to `/login`
+- ✅ `/login` → 200 (public)
 
----
+### OTP Error Handling
+- ✅ Empty email → `{"error":"Email is required"}`
+- ✅ Missing email field → `{"error":"Email is required"}`
+- ✅ Missing fields on verify → `{"error":"Missing required fields"}`
+- ✅ Wrong secret code → `{"error":"Invalid access code."}`
+- ✅ Correct secret, no active OTP → `{"error":"Invalid or expired code. Request a new one."}`
 
-### D-5 - Local Code Changes Applied
-**Status:** APPLIED LOCALLY, NOT YET COMMITTED  
-**Files changed:**
-- `frontend/app/api/auth/_utils.ts` added shared auth env validation and Supabase client helpers.
-- `frontend/app/api/auth/send-otp/route.ts` now validates required env vars, normalizes email, uses crypto-safe OTP generation, handles Supabase lookup/insert errors, and returns `502` if Resend rejects the email request instead of silently returning success.
-- `frontend/app/api/auth/verify-otp/route.ts` now validates env vars, normalizes email/OTP input, handles Supabase update errors, and logs final sign-in failures.
-- `frontend/app/login/page.tsx` now surfaces Google OAuth and resend failures to the user instead of failing silently.
-- `frontend/lib/supabase/server.ts` now safely ignores cookie writes from Server Components while middleware handles refreshes.
-- `frontend/.env.local.example` now documents server-only OTP env vars: `SUPABASE_SERVICE_KEY`, `RESEND_API_KEY`, `OTP_FROM_EMAIL`.
-- `backend/app/main.py` now supports comma-separated `FRONTEND_URL` origins for CORS.
-- `backend/.env.example` now documents comma-separated production frontend origins.
-- `.gitignore` now ignores `tsconfig.tsbuildinfo`.
-- `frontend/package-lock.json` and `frontend/next-env.d.ts` were generated by installing/building the frontend.
-
----
-
-### D-6 - Verification Run
-**Status:** PASSED FOR FRONTEND / PARTIAL FOR BACKEND  
-**Commands run:**
-
-```bash
-cd frontend
-npm.cmd install
-npm.cmd run type-check
-npm.cmd run build
-```
-
-**Result:** TypeScript and Next.js production build passed.
-
-```bash
-cd backend
-python -m py_compile app\main.py
-```
-
-**Result:** Edited backend entrypoint syntax compiled successfully.
-
-**Backend pytest note:** Full backend tests did not run because this machine's default Python is `3.14` and backend dependencies are not installed (`ModuleNotFoundError: No module named 'supabase'`). The repo is pinned for Python `3.11.9` on Render because newer Python versions break some dependencies.
+### API (authenticated, post B-1 fix)
+- ✅ `GET /profile/` → 200 with profile data
+- ✅ `PATCH /profile/` empty body → 200 `{"status":"no_changes"}`
+- ✅ `PATCH /profile/` with data → 200, updates DB
+- ✅ `PATCH /profile/onboarding/complete` → 200 `{"status":"onboarding_complete"}`
+- ✅ `GET /jobs/` → 200 `{"data":[],"total":0}`
+- ✅ `GET /jobs/?min_fit=70` → 200 (filtered)
+- ✅ `GET /jobs/?min_fit=150` → 422 "Input should be ≤ 100"
+- ✅ `GET /jobs/?min_fit=-5` → 422 "Input should be ≥ 0"
+- ✅ `GET /jobs/?limit=500` → 422 "Input should be ≤ 200"
+- ✅ `GET /jobs/?limit=0` → 422 "Input should be ≥ 1"
+- ✅ `POST /jobs/{id}/tailor` (recovery incomplete) → `{"error":"Resume Quality Recovery must complete..."}`
+- ✅ `GET /apply/sessions` → 200 `{"data":[]}`
+- ✅ `GET /outreach/` → 200 `{"data":[]}`
+- ✅ `POST /outreach/generate` → 200 `{"status":"outreach_queued"}`
+- ✅ `GET /intake/evidence` → 200 `{"data":[]}`
+- ✅ `GET /health` → 200 `{"status":"ok","env":"production"}`
 
 ---
 
 ## Recommended Fix Order
 
-| Priority | Issue | Status | Action |
-|---|---|---|---|
-| 1 | D-3 / B-6 | ✅ DONE | Render `APP_ENV=production` + `FRONTEND_URL` set |
-| 2 | C-3 | ✅ DONE | `otp_verifications` table confirmed present |
-| 3 | B-1 / B-2 / B-3 | ✅ N/A | Email auth now uses Supabase native OTP — no Resend, no server-side Vercel secrets |
-| 4 | Code changes | ✅ DONE | Auth rearchitected: Supabase OTP + secret code gate. Committed and pushed. |
-| 5 | D-1 | ⚠️ MANUAL | Vercel → Project Settings → General → Deployment Protection → disable |
-| 6 | D-2 | ⚠️ MANUAL | Confirm/fix which domain is the RBot production URL in Vercel |
-| 7 | E-1 | ⚠️ MANUAL | Supabase → Auth → Providers → Email → enable "Enable Email OTP" |
-| 8 | C-2 / D-4 | ✅ N/A | Email confirmation no longer blocks auth — `verifyOtp` confirms in one step |
-| 9 | C-1 | ⚠️ VERIFY | Google Cloud Console → OAuth client → confirm `https://ogecgrhzretnkgehyifi.supabase.co/auth/v1/callback` in Authorized Redirect URIs |
-| 10 | B-4 / B-5 | ✅ DONE (D-4) | Supabase already accepts both Vercel callback URLs |
-
-After adding or changing Vercel environment variables, **redeploy Vercel** so the Next.js API routes pick up the new server-only values.
+1. **B-3** — Highest impact. Check Supabase `auth.users` trigger for profile creation first.
+2. **B-4** — Core UX. Verify all DB migrations ran in production Supabase project.
+3. **B-2 / B-5** — Replace `.single()` with `.maybe_single()` + 404 across `apply.py`, `tracker.py`, `jobs.py`.
+4. **F-1** — Low priority, only affects non-browser consumers checking status codes precisely.

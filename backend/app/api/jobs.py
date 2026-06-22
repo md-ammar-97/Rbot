@@ -42,7 +42,9 @@ async def list_jobs(
 @router.get("/{job_id}")
 async def get_job(job_id: str, user=Depends(get_current_user)):
     """Get a single job with the user's score."""
-    job = supabase_admin.table("jobs").select("*").eq("id", job_id).single().execute()
+    job = supabase_admin.table("jobs").select("*").eq("id", job_id).maybe_single().execute()
+    if not job.data:
+        raise HTTPException(404, "Job not found.")
     score = supabase_admin.table("job_scores").select("*") \
             .eq("user_id", user.id).eq("job_id", job_id).maybe_single().execute()
     return {"data": {"job": job.data, "score": score.data}}
@@ -53,7 +55,7 @@ async def request_tailoring(job_id: str, user=Depends(get_current_user)):
     """Queue tailored resume + cover letter generation for a specific job."""
     # Check recovery complete
     profile = supabase_admin.table("profiles").select("recovery_status") \
-              .eq("id", user.id).single().execute().data
+              .eq("id", user.id).maybe_single().execute().data
     if not profile or profile.get("recovery_status") != "complete":
         return {"error": "Resume Quality Recovery must complete before tailoring."}
 
