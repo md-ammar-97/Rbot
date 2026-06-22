@@ -1,4 +1,4 @@
-# RBot Platform — Issues Log
+# PMFit Platform — Issues Log
 
 **Last updated:** 2026-06-22  
 **Test run:** Live testing against https://rbot-api.onrender.com · https://rbot-mu.vercel.app  
@@ -8,315 +8,336 @@
 
 ## Summary
 
+### Resolved
 | ID | Severity | Status | Area | Title |
 |----|----------|--------|------|-------|
 | B-1 | Critical | ✅ Fixed | Backend Auth | All authenticated endpoints returned 401 |
 | B-2 | High | ✅ Fixed | Backend | Invalid UUID path params crash with 500 instead of 404 |
 | B-3 | High | ✅ Fixed | Backend | Recovery endpoints 500 when user has no profile row |
 | B-4 | High | ✅ Fixed | Backend | `GET /tracker/` and `POST /tracker/note` return 500 |
-| B-5 | Medium | ✅ Fixed | Backend | `GET /jobs/{id}` 500 on nonexistent job (same class as B-2) |
+| B-5 | Medium | ✅ Fixed | Backend | `GET /jobs/{id}` 500 on nonexistent job |
 | D-1 | Critical | ✅ Fixed | Infra | No Celery worker deployed — all background tasks never execute |
+| F-1 | Low | ✅ Fixed | Frontend/API | Missing Bearer header returns 403, not 401 |
 | F-2 | High | ✅ Fixed | Frontend | Recovery step shows infinite spinner with no timeout or fallback |
 | F-3 | Medium | ✅ Fixed | Frontend | Onboarding progress circles mark skipped steps as complete (✓) |
-| F-1 | Low | ✅ Fixed | Frontend/API | Missing Bearer header returns 403, not 401 |
+| F-OTP | High | ✅ Fixed | Frontend | OTP input converts mixed-case code to all-caps before verification |
+
+### Open
+| ID | Severity | Status | Area | Title |
+|----|----------|--------|------|-------|
+| F-4 | High | 🔴 Open | Frontend UI | Sidebar PMFit logo renders as solid white box |
+| F-5 | Medium | 🟡 Open | Frontend UI | Sidebar logo + "PMFit" text undersized relative to nav items |
+| F-6 | High | 🔴 Open | Auth | Session not persisting 24 hrs — users get logged out prematurely |
+| F-7 | High | 🔴 Open | Routing | Logged-in user navigating to `/` sees landing page instead of dashboard |
+| F-8 | Medium | 🟡 Open | Frontend UX | File upload shows static "Uploading…" text — no animation or progress |
+| F-9 | High | 🔴 Open | GitHub Step | GitHub repo connection broken; single-repo only; no input format guidance |
+| F-10 | High | 🔴 Open | Recovery UX | Recovery questions: per-answer submit grays all; answers not saved to profile; needs single final submit |
+| F-11 | High | 🔴 Open | Profile | Evidence source buttons route back to onboarding instead of dedicated modal |
+| F-12 | Medium | 🟡 Open | Tracker | Kanban missing columns: Interviewing, Rejected, Ghosted |
+| F-13 | High | 🔴 Open | Tracker | No way to manually add jobs applied outside PMFit to Kanban board |
+| F-14 | Critical | 🔴 Open | Engine | Resume refinement + cover letter generation engine not implemented |
+| F-15 | High | 🔴 Open | Settings | Settings page is blank — no profile fields, targeting, or preferences |
+| F-16 | Low | 🟡 Open | Intake | LinkedIn export — storing and processing entire export; should filter to relevant fields only |
+| F-17 | Medium | 🟡 Open | Integrations | Apify integration not available — limits job discovery to known company board tokens |
 
 ---
 
-## B-1 — All Authenticated Endpoints Returned 401 ✅ FIXED
+## Resolved Issues
 
+### B-1 — All Authenticated Endpoints Returned 401 ✅ FIXED
 **Severity:** Critical  
-**Deployed:** 2026-06-21T23:06:05Z (commit `c75c64a`)  
-**Affected:** Every protected API endpoint
-
-**Root cause:**  
-In `backend/app/core/security.py`, after `supabase_admin.auth.get_user(token)` **succeeded**, the next line was:
-```python
-result.user.access_token = token
-```
-`gotrue-py` v2 uses Pydantic v2, which raises `ValueError` on unknown field assignment. The `User` model has no `access_token` field. This `ValueError` was caught by the bare `except Exception` handler and returned as HTTP 401. The JWT was **always valid** — auth succeeded but the post-auth assignment always crashed.
-
-**Evidence from Render logs:**
-```
-Auth validation failed — ValueError: "User" object has no field "access_token"
-  (token prefix: eyJhbGciOiJFUzI1NiIs...)
-```
-This appeared on every single authenticated request.
-
-**Fix:** Removed `result.user.access_token = token`. No downstream handlers use `user.access_token` — all use `user.id` only.
+**Fixed in commit:** `c75c64a`  
+**Root cause:** In `backend/app/core/security.py`, post-auth assignment `result.user.access_token = token` raised `ValueError` (Pydantic v2 rejects unknown fields on the `User` model). Caught by bare `except Exception` → returned as 401. Every request was being rejected despite the JWT being valid.  
+**Fix:** Removed the invalid field assignment. No downstream handlers use `user.access_token`.
 
 ---
 
-## B-2 — Invalid UUID Path Params Crash with 500 Instead of 404
-
+### B-2 — Invalid UUID Path Params Crash with 500 ✅ FIXED
 **Severity:** High  
-**Status:** Open  
-**Affected endpoints:**
-- `GET /jobs/{job_id}`
-- `GET /jobs/{job_id}/artifacts`
-- `PATCH /tracker/{item_id}/status`
-- `GET /tracker/{item_id}/events`
-- `GET /apply/sessions/{session_id}`
-- `POST /apply/sessions/{session_id}/rollback`
-
-**Observed:** All return `500 Internal Server Error` when given a non-UUID string like `nonexistent-session-id`.
-
-**Root cause from Render logs:**
-```
-postgrest.exceptions.APIError: {
-  'code': '22P02',
-  'message': 'invalid input syntax for type uuid: "nonexistent-session-id"'
-}
-  File "backend/app/api/apply.py", line 52, in rollback_session
-  File "backend/app/api/tracker.py", line 32, in update_status
-  File "backend/app/api/tracker.py", line 59, in get_events
-```
-Path parameters are passed directly to `.eq("id", ...)` without UUID format validation. The `APIError` is unhandled, so FastAPI returns 500.
-
-**Expected:** 404  
-**Reproduction:** `GET /apply/sessions/not-a-uuid` with valid Bearer token → 500
-
-**Fix:** Wrap PostgREST single-row queries in try/except and return 404:
-```python
-try:
-    result = supabase_admin.table("apply_sessions").select("*") \
-             .eq("id", session_id).eq("user_id", user.id).single().execute()
-except Exception:
-    raise HTTPException(404, "Session not found.")
-```
-**Files:** `apply.py:40,52` · `tracker.py:32,59` · `jobs.py:44-47,78-80`
+**Fixed in commit:** `b2d1ad5`, `eadeeb5`  
+**Root cause:** Path params passed directly to `.eq("id", ...)` without UUID validation. PostgREST throws `APIError: invalid input syntax for type uuid` which was unhandled → 500.  
+**Fix:** Replaced `.single()` with `.maybe_single()` + guard across `apply.py`, `tracker.py`, `jobs.py`.
 
 ---
 
-## B-3 — Recovery Endpoints Return 500 When User Has No Profile Row
-
+### B-3 — Recovery Endpoints Return 500 When User Has No Profile Row ✅ FIXED
 **Severity:** High  
-**Status:** Open  
-**Affected:** `GET /recovery/status` · `GET /recovery/questions` · `GET /recovery/diagnosis` · `GET /recovery/baseline`
-
-**Observed:** All four return `500 Internal Server Error` for the test account.
-
-**Root cause:** `recovery.py → recovery_status()` calls `.single()` on the profiles table:
-```python
-profile = supabase_admin.table("profiles") \
-          .select("...").eq("id", user.id).single().execute()
-```
-PostgREST `.single()` raises `APIError` when 0 rows are returned. The test user was created via OTP flow but may not have a `profiles` row if the `on_user_create` Supabase trigger is missing or failed.
-
-**Impact:** Any newly created user whose profile row isn't seeded will see 500 errors on all recovery endpoints, breaking onboarding at Step 4.
-
-**Fix (two-part):**
-1. In Supabase dashboard, verify a trigger exists: `INSERT INTO public.profiles (id) VALUES (NEW.id)` on `auth.users INSERT`.
-2. In `recovery.py`, replace `.single()` with `.maybe_single()` + guard:
-```python
-profile = supabase_admin.table("profiles") \
-          .select("...").eq("id", user.id).maybe_single().execute()
-if not profile.data:
-    raise HTTPException(404, "Profile not found.")
-```
+**Fixed in commit:** `b2d1ad5`  
+**Root cause:** `.single()` on profiles table throws `APIError` when 0 rows returned (new OTP users with no profile trigger).  
+**Fix:** Replaced `.single()` with `.maybe_single()` + 404 guard across all recovery endpoints.
 
 ---
 
-## B-4 — `GET /tracker/` and `POST /tracker/note` Return 500
-
+### B-4 — `GET /tracker/` and `POST /tracker/note` Return 500 ✅ FIXED
 **Severity:** High  
-**Status:** Open  
-**Affected:** `GET /tracker/` · `POST /tracker/note`
-
-**Observed:** Both return `500 Internal Server Error` for the test account, even though neither uses `.single()`.
-
-**Root cause (suspected):** The tracker query uses PostgREST foreign table join syntax:
-```python
-supabase_admin.table("tracker_items").select(
-    "..., jobs(id, title, ...), job_scores(fit_score, ...)"
-)
-```
-If `tracker_items`, `jobs`, or `job_scores` tables are missing from the production DB schema, or foreign key relationships are not set up, PostgREST rejects the query. This suggests one or more DB migrations have not been run in production.
-
-`POST /tracker/note` calls `add_note()` in `services/tracker.py` which likely inserts into `tracker_notes` — same missing-table issue.
-
-**Fix:** Verify all migrations have run in production. In Supabase dashboard, confirm `tracker_items`, `tracker_events`, `tracker_notes` tables exist with FK to `jobs` and `job_scores`.
+**Fixed in commit:** `eadeeb5`  
+**Root cause:** PostgREST foreign table join query failed when `tracker_items`/`jobs`/`job_scores` FK relationships not set up, or migrations not run. Fixed by migration verification + query restructuring.
 
 ---
 
-## B-5 — `GET /jobs/{id}` Returns 500 on Nonexistent Job
-
+### B-5 — `GET /jobs/{id}` Returns 500 on Nonexistent Job ✅ FIXED
 **Severity:** Medium  
-**Status:** Open (same class as B-2)  
-**Affected:** `GET /jobs/{job_id}` · `GET /jobs/{job_id}/artifacts`
-
-**Root cause:** `jobs.py → get_job()` uses `.single()`:
-```python
-job = supabase_admin.table("jobs").select("*").eq("id", job_id).single().execute()
-```
-When `job_id` doesn't exist, `.single()` throws APIError → unhandled → 500.
-
-**Expected:** 404 `"Job not found."`
-
-**Fix:**
-```python
-job = supabase_admin.table("jobs").select("*").eq("id", job_id).maybe_single().execute()
-if not job.data:
-    raise HTTPException(404, "Job not found.")
-```
+**Fixed in commit:** `b2d1ad5`  
+**Root cause:** `.single()` on jobs table threw `APIError` for nonexistent `job_id`.  
+**Fix:** Replaced with `.maybe_single()` + `HTTPException(404, "Job not found.")`.
 
 ---
 
-## F-1 — Missing Bearer Header Returns 403, Not 401
+### D-1 — No Celery Worker Deployed ✅ FIXED
+**Severity:** Critical  
+**Fixed in commit:** `1a64c5b`  
+**Root cause:** Celery requires a separate worker process + Redis broker, neither available on Render free tier. All background tasks silently stalled.  
+**Fix:** Replaced `celery_app.py` with in-process threading. Public API (`.delay()`, `bind=True`, `self.retry()`) preserved; tasks now run as daemon threads. Removed `celery[redis]` and `redis` from `requirements.txt`.  
+**Tradeoff:** No retry persistence across API process restarts (acceptable for MVP — tasks complete in seconds).
 
+---
+
+### F-1 — Missing Bearer Header Returns 403, Not 401 ✅ FIXED
 **Severity:** Low  
-**Status:** ✅ Fixed — commit pending push
-
-**Observed:** Requests with no `Authorization` header receive `403 {"detail":"Not authenticated"}`.  
-Requests with a present-but-invalid token correctly return `401 {"detail":"Invalid or expired token"}`.
-
-**Root cause:** FastAPI's built-in `HTTPBearer` dependency returns 403 for missing scheme. This is technically RFC-compliant but inconsistent for API consumers.
-
-**Fix (optional):**
-```python
-class StrictBearer(HTTPBearer):
-    async def __call__(self, request: Request):
-        try:
-            return await super().__call__(request)
-        except HTTPException:
-            raise HTTPException(status_code=401, detail="Not authenticated")
-bearer = StrictBearer()
-```
+**Fixed in commit:** `7be0406`  
+**Root cause:** FastAPI's `HTTPBearer` returns 403 for missing scheme (RFC-compliant but inconsistent).  
+**Fix:** Wrapped in `StrictBearer` that catches and re-raises as 401.
 
 ---
 
-## D-1 — No Celery Worker Deployed — All Background Tasks Never Execute
-
-**Severity:** Critical  
-**Status:** ✅ Fixed — replaced Celery with in-process threading; no worker or Redis needed  
-**Discovered:** 2026-06-22 via Render service list
-
-**Observed:** Every background task queued via `task.delay()` silently stalled. Render background workers require a paid plan; free-tier deployment had no way to run Celery.
-
-**Root cause:** Celery requires a separate worker process + Redis broker, neither of which are available on the free tier.
-
-**Fix:** Replaced `backend/app/workers/celery_app.py` with an in-process threading implementation. The public API (`.delay()`, `bind=True`, `self.retry()`) is identical so `tasks.py` required zero changes. Tasks now run as daemon threads inside the API process. Removed `celery[redis]` and `redis` from `requirements.txt` to speed up builds.
-
-**Tradeoff vs Celery:** No retry persistence across restarts — if the API process dies mid-task, that task is lost. For MVP this is acceptable; all tasks complete in seconds via Groq API calls.
-
----
-
-## F-2 — Recovery Step Shows Infinite Spinner With No Timeout or Fallback
-
+### F-2 — Recovery Step Infinite Spinner ✅ FIXED
 **Severity:** High  
-**Status:** ✅ Fixed — 120-second timeout with "Continue to Dashboard" + "Check again" fallback  
-**Source:** ChatGPT agent test report, 2026-06-21  
-**File:** [frontend/components/onboarding/steps/RecoveryStep.tsx](frontend/components/onboarding/steps/RecoveryStep.tsx)
-
-**Observed:** The recovery step (onboarding step 4) shows "Analysing your resume… This takes 15–30 seconds." with an animated spinner indefinitely. The user has no way to proceed or retry.
-
-**Root cause:**
-```tsx
-if (status === "pending") {
-  return <spinner />;  // no timeout, no escape
-}
-```
-The component polls `GET /recovery/status` every 5 seconds and renders the spinner while `status === "pending"`. Two conditions cause it to spin forever:
-1. User skipped resume upload — no Celery task was ever queued, so `recovery_status` never leaves `"pending"`
-2. No Celery worker is running (D-1) — even if a resume was uploaded, the analysis task is never processed
-
-**Fix needed (frontend):** Add a timeout after ~2 minutes, show a clear message and a "Try uploading your resume again" button:
-```tsx
-const [elapsed, setElapsed] = useState(0);
-// in the poll interval: setElapsed(e => e + 5)
-if (status === "pending" && elapsed > 120) {
-  return <ErrorState message="Analysis is taking longer than expected." onRetry={...} />;
-}
-```
+**Fixed in commit:** `7be0406`  
+**Root cause:** `RecoveryStep.tsx` polled every 5 s with no timeout or escape path.  
+**Fix:** 120-second timeout with "Continue to Dashboard" + "Check again" buttons.
 
 ---
 
-## F-3 — Onboarding Progress Circles Mark Skipped Steps as Complete (✓)
-
+### F-3 — Onboarding Progress Circles Mark Skipped Steps as Complete ✅ FIXED
 **Severity:** Medium  
-**Status:** ✅ Fixed — steps only turn green via explicit `onComplete`, skipped steps remain grey  
-**Source:** ChatGPT agent test report, 2026-06-21  
-**File:** [frontend/components/onboarding/OnboardingFlow.tsx](frontend/components/onboarding/OnboardingFlow.tsx)
-
-**Observed:** After clicking "Skip for now" on steps 1–3, all three circles show a green ✓, giving the false impression that resume upload, LinkedIn export, and GitHub connection succeeded.
-
-**Root cause:**
-```tsx
-i < stepIndex
-  ? "bg-apple-success text-white"   // ← ✓ for ANY past step, including skipped
-  : i === stepIndex
-  ? "bg-apple-accent text-white"
-  : "bg-apple-border ..."
-```
-The component tracks only `currentStep` index, not whether each step was actually completed. "Skip for now" calls `onNext()` which increments `stepIndex`, making all prior steps appear green.
-
-**Fix:** Track completion state per step:
-```tsx
-const [completed, setCompleted] = useState<Set<Step>>(new Set());
-// pass onComplete={() => setCompleted(s => new Set(s).add(step))} to each step
-// in the progress circles:
-i < stepIndex
-  ? completed.has(STEPS[i]) ? "bg-apple-success ..." : "bg-apple-border ..."
-```
-Skipped steps should show a neutral (grey) dot, not a green ✓.
+**Fixed in commit:** `7be0406`  
+**Root cause:** Progress used `i < stepIndex` to determine completion — any past step showed ✓ regardless of whether it was skipped.  
+**Fix:** Added `completed: Set<Step>` state; only `onComplete()` (not `onNext()`) marks a step green.
 
 ---
 
-## Notes on ChatGPT Agent Report (2026-06-21)
-
-The external test report identified 4 issues:
-
-| Report # | Title | Status |
-|----------|-------|--------|
-| 1 | Resume upload "Invalid or expired token" | ✅ Root cause was B-1 — fixed 2026-06-21T23:06Z |
-| 2 | GitHub connect "Invalid or expired token" | ✅ Root cause was B-1 — fixed 2026-06-21T23:06Z |
-| 3 | Recovery spinner never completes | 🔴 Tracked as F-2 + D-1 |
-| 4 | Misleading progress indicators | 🔴 Tracked as F-3 |
+### F-OTP — OTP Input Converts Mixed-Case Code to All-Caps ✅ FIXED
+**Severity:** High  
+**Fixed in commit:** `4fa76a6`  
+**Root cause:** `OTPInput.tsx` called `.toUpperCase()` on every typed character (line 25) and on paste (line 48). OTP codes are mixed-case (e.g. `lojyEflA`). The code was becoming `LOJYEFLA` before hitting verification → always failed.  
+**Fix:** Removed both `.toUpperCase()` calls; case is now preserved exactly as typed or pasted.
 
 ---
 
-## Confirmed Passing Tests
+## Open Issues
+
+### F-4 — Sidebar PMFit Logo Renders as Solid White Box 🔴 HIGH
+
+**Observed:** The PMFit icon in the sidebar (dark navy `#111827` background) appears as a blank white box.  
+**Root cause:** `Logo.tsx` applies `className="brightness-0 invert"` to `logo-icon.png` on dark backgrounds. `brightness-0` reduces all pixels to black, then `invert` turns them all white — including the white background of the PNG. Since the PNG has no transparent background, the entire image becomes white.  
+**File:** [frontend/components/ui/Logo.tsx](frontend/components/ui/Logo.tsx)  
+**Fix needed:** Either (a) use a version of the icon with a transparent background, or (b) replace the CSS filter approach with a dedicated dark-mode logo asset, or (c) apply `mix-blend-mode: screen` instead on the dark sidebar.
+
+---
+
+### F-5 — Sidebar Logo + "PMFit" Text Undersized Relative to Nav Items 🟡 MEDIUM
+
+**Observed:** The PMFit icon and "PMFit" wordmark in the sidebar feel too small; nav item labels are visually similar in weight, making the logo feel like just another item rather than the app identity.  
+**File:** [frontend/components/ui/Logo.tsx](frontend/components/ui/Logo.tsx), [frontend/components/layout/Sidebar.tsx](frontend/components/layout/Sidebar.tsx)  
+**Fix needed:** Increase the `md` size preset in `sizeMap` (currently icon=32, text=18px). Suggested: icon=36–40px, text=20–22px, slightly bolder weight.
+
+---
+
+### F-6 — Session Not Persisting 24 Hours 🔴 HIGH
+
+**Observed:** Users are logged out before the expected 24-hour window; OTP-based sessions appear to expire earlier.  
+**Root cause (suspected):** Supabase session refresh is not being triggered on page load for server-rendered pages. The `@supabase/ssr` middleware must call `supabase.auth.getUser()` on every request (not just `getSession()`) to refresh the token automatically. If `middleware.ts` only reads the cookie without refreshing, short-lived access tokens expire without a new one being issued.  
+**File:** [frontend/middleware.ts](frontend/middleware.ts), [frontend/lib/supabase/](frontend/lib/supabase/)  
+**Fix needed:** Ensure `middleware.ts` calls `supabase.auth.getUser()` to trigger session refresh on every navigated request, per Supabase SSR best-practice pattern. Verify Supabase project JWT expiry setting (default is 1 hour; refresh token extends this if handled correctly).
+
+---
+
+### F-7 — Logged-In User Navigating to `/` Sees Landing Page 🔴 HIGH
+
+**Observed:** After login, clicking the browser back button or typing `rbot-mu.vercel.app` lands on the public marketing landing page — the same page that shows "Get Started" and "Sign in" CTAs — instead of redirecting to `/dashboard`.  
+**Root cause:** `app/page.tsx` (landing page) has no auth check. The middleware only protects `/dashboard`, `/jobs`, `/tracker`, `/profile`, `/onboarding`, `/gate` — not `/`.  
+**Files:** [frontend/app/page.tsx](frontend/app/page.tsx), [frontend/middleware.ts](frontend/middleware.ts)  
+**Fix needed:** Add a server-side auth check at the top of `app/page.tsx` — if a valid session exists, `redirect("/dashboard")`. Alternatively, update `middleware.ts` to intercept GET `/` and redirect authenticated users to `/dashboard`.
+
+---
+
+### F-8 — File Upload Shows Static "Uploading…" Text — No Animation 🟡 MEDIUM
+
+**Observed:** When uploading a resume, the drop zone shows the static text "Uploading…" with no visual progress indicator. For large files (or slow connections) this looks broken rather than in-progress.  
+**File:** [frontend/components/onboarding/steps/ResumeUploadStep.tsx](frontend/components/onboarding/steps/ResumeUploadStep.tsx) (line 65)  
+**Current code:** `{status === "uploading" && <p className="text-[15px] text-apple-accent">Uploading…</p>}`  
+**Fix needed:** Replace static text with a Framer Motion spinner + animated text, or a fake/real progress bar (XHR upload with `onprogress` for real %). Same pattern needed in `LinkedInStep.tsx` and anywhere else files are uploaded.
+
+---
+
+### F-9 — GitHub Repo Connection Broken; Single Repo; No Input Format Guidance 🔴 HIGH
+
+**Observed:** Clicking "Connect Repository" in the GitHub step produces an error (likely 401 or 500 from backend). Additionally:
+1. The form only allows one owner/repo pair — no way to add multiple repos
+2. There is no instruction telling the user whether to enter a full URL, just the owner, or owner + repo name separately
+3. After a connection error, the form doesn't explain what went wrong
+
+**Root cause (suspected):** The API call to `POST /intake/github` may fail because the bearer token isn't being attached properly at onboarding time, or the backend GitHub integration is hitting the D-1 threading issue. Multi-repo is not supported in the current UI or backend schema.  
+**Files:** [frontend/components/onboarding/steps/GitHubStep.tsx](frontend/components/onboarding/steps/GitHubStep.tsx), [backend/app/api/intake.py](backend/app/api/intake.py)  
+**Fix needed:**
+- Add clear labelled instructions: "Enter the GitHub **username** (left) and **repository name** (right) separately — e.g. `md-ammar-97` / `my-project-repo`. Do not enter a full URL."
+- Add "Add another repo" button to submit multiple repos in one session
+- Fix the bearer token / API connectivity issue
+- Show per-repo success/error state
+
+---
+
+### F-10 — Recovery Questions: Per-Answer Submit Grays All; Answers Not Saved to Profile 🔴 HIGH
+
+**Observed (two separate bugs):**
+1. When submitting answer for question 1, the `saving` flag is set to `true` which disables ALL "Submit Answer" buttons across all questions, not just the one being saved. The UI appears frozen until the single save completes.
+2. After answering and submitting all questions, navigating to the dashboard shows 0 answered questions — the `questions_answered_count` in the profile is not being updated, or the profile page is reading from a stale/different data source.
+
+**UX issue (separate):** The current design asks for per-question submit buttons. The user's preference is: fill all answers freely, then one **"Submit All & Build Profile"** button at the bottom that batch-saves all answers and redirects to dashboard.
+
+**Files:**
+- [frontend/components/onboarding/steps/RecoveryStep.tsx](frontend/components/onboarding/steps/RecoveryStep.tsx) — `saving` state is shared across all buttons (line 29, line 191–196)
+- [backend/app/api/recovery.py](backend/app/api/recovery.py) — `POST /recovery/answer` endpoint; check whether it increments `questions_answered_count`
+
+**Fix needed:**
+- Replace per-question submit buttons with a single "Submit All & Build Profile" button
+- Change `saving` to a per-question state or a single global submit state that only blocks the final button
+- Verify backend increments `questions_answered_count` and that the profile page reads from `recovery_cases.questions_answered_count`, not a stale field
+
+---
+
+### F-11 — Evidence Source Buttons Route to Onboarding Instead of Dedicated Modal 🔴 HIGH
+
+**Observed:** Clicking "Upload Resume", "Add LinkedIn Export", or "Connect GitHub" on the Resume Recovery page (`/profile`) navigates the user to `/onboarding?force=true&step=X`. This sends a logged-in, post-onboarding user back through the multi-step onboarding wizard — confusing and structurally incorrect.
+
+**Expected:** Each button should open a lightweight in-page modal or slide-over panel that handles only that specific action (resume re-upload, LinkedIn re-import, GitHub add-repo) without the full onboarding shell, progress steps, or navigation away from the profile page.
+
+**File:** [frontend/app/profile/page.tsx](frontend/app/profile/page.tsx) (Evidence Sources section, lines ~135–152)  
+**Fix needed:** Create dedicated lightweight modal components — `UploadResumeModal`, `LinkedInImportModal`, `GitHubRepoModal` — triggered by the evidence source buttons without leaving the profile page.
+
+---
+
+### F-12 — Kanban Board Missing Columns: Interviewing, Rejected, Ghosted 🟡 MEDIUM
+
+**Observed:** The visible Kanban only shows 5 columns (Discovered, Reviewing, Tailoring, Applied, Outreach). The existing code defines 9 columns but only shows columns with items OR the first 5 (`i < 5` guard). The full pipeline including Interviewing, Rejected, and Ghosted is never visible.
+
+**Additional request:** Add two new status values: `rejected` and `ghosted` (no response after N days).
+
+**File:** [frontend/components/tracker/KanbanBoard.tsx](frontend/components/tracker/KanbanBoard.tsx) (line: `const visibleCols = COLUMNS.filter((col, i) => i < 5 || ...)`)  
+**Fix needed:**
+- Remove the `i < 5` filter — show all columns always (with horizontal scroll if needed)
+- Add `{ status: "interviewing", label: "Interviewing", color: "#FF8C00" }` (may already exist as `interview_scheduled`)
+- Add `{ status: "rejected", label: "Rejected", color: "#E63946" }`
+- Add `{ status: "ghosted", label: "Ghosted", color: "#6B7280" }`
+- Ensure the DB `tracker_items.current_status` enum/check constraint allows these values
+
+---
+
+### F-13 — No Way to Manually Add Jobs to Kanban Board 🔴 HIGH
+
+**Observed:** The Kanban board only shows jobs fetched from the PMFit job board. Users who applied to jobs via LinkedIn, company careers pages, or referrals have no way to track those applications in PMFit.
+
+**Required fields (per user spec):**
+- Job Title *(required)*
+- Company *(required)*
+- Application Date *(required, shown on card)*
+- Job Description *(optional note field)*
+- Resume/Cover Letter upload *(optional file attachment)*
+
+**Card display:** Only Job Title, Company, Application Date visible on card. Full details shown in click-to-expand modal.
+
+**Fix needed:**
+- "Add Job Manually" button in Kanban header
+- Modal form with above fields + file attachment
+- `POST /tracker/manual` endpoint on backend that creates a synthetic `jobs` row + `tracker_items` row with `source: "manual"`
+- Same expand-on-click detail modal as automatically discovered jobs
+
+---
+
+### F-14 — Resume Refinement + Cover Letter Generation Engine Not Implemented 🔴 CRITICAL
+
+**Observed:** The drafting engine (`POST /apply/{job_id}/prepare`) exists in the API spec but the full flow with keyword extraction, match scoring, and conditional rewriting is not implemented. No download option exists.
+
+**Required behaviour (per spec):**
+1. **Keyword extraction** — LLM reads JD and extracts top keywords/skills
+2. **Match scoring** — compare against user's `profile_graph`
+3. **Conditional tailoring:**
+   - Match ≥ 85%: use existing resume as-is
+   - Match 80–84%: inject 5 JD keywords into Skills / Experience sections
+   - Match < 80%: full resume rewrite aligned to JD
+4. **Cover letter generation** — based on updated resume + JD after tailoring
+5. **Per-job generation trigger** — "Generate" button on each `JobCard`; not auto-run
+6. **PDF download** — both resume and cover letter downloadable as PDF only
+7. All generation grounded in `profile_graph` evidence (no invented claims)
+
+**Files:** [backend/app/services/drafting.py](backend/app/services/drafting.py), [frontend/components/jobs/JobCard.tsx](frontend/components/jobs/JobCard.tsx)  
+**Fix needed:** Full implementation of drafting service with keyword extraction → scoring → conditional tailoring → cover letter pipeline + frontend download buttons
+
+---
+
+### F-15 — Settings Page Is Blank 🔴 HIGH
+
+**Observed:** `/settings` exists in navigation but renders an empty page (no server component, no content).
+
+**Required sections (per spec):**
+1. **Profile** — First name, Last name, Username, Country, Avatar/photo upload
+2. **Job Targeting** — Target job titles, target countries/locations, remote preference, work authorization, sponsorship required, compensation range
+3. **Blacklisted Companies** — Add company name + official website URL; displayed as removable cards; these companies are excluded from discovery and scoring. Both fields required per entry.
+4. No password field (auth is via OTP/Google)
+
+**Files:** No `app/settings/page.tsx` or `app/settings/` directory exists in the codebase  
+**Fix needed:** Create full settings page with Supabase reads/writes to `profiles` table; blacklisted companies stored in a new `blacklisted_companies` table (user_id, company_name, company_website)
+
+---
+
+### F-16 — LinkedIn Export Stores/Processes Entire Archive 🟡 LOW
+
+**Observed:** The LinkedIn export step accepts the full `.zip` export from LinkedIn, which contains dozens of CSV files (connections, messages, ads data, etc.) that are irrelevant to job matching.
+
+**Fix needed:** At the intake layer (`POST /intake/linkedin`), extract only `Profile.csv`, `Positions.csv`, `Skills.csv`, `Education.csv` from the zip. Discard all other files without storing them. Document to the user exactly which files are used.  
+**File:** [backend/app/services/ingestion.py](backend/app/services/ingestion.py)
+
+---
+
+### F-17 — No Apify Integration for Enhanced Job Discovery 🟡 MEDIUM
+
+**Background:** Current discovery is limited to companies with known Greenhouse/Lever board tokens configured in the backend. Apify provides scrapers for broader job boards (Indeed, LinkedIn Jobs, etc.) that users can connect via their own API key.
+
+**Requested behaviour:** Settings page should include an "Integrations" section where users can paste their own Apify API key. If connected, job discovery also queries the user-configured Apify actors (e.g. LinkedIn Jobs scraper) in addition to Greenhouse/Lever. PMFit never embeds a shared Apify key — users bring their own.
+
+**Fix needed:** 
+- Settings page "Integrations" section with Apify API key input (stored encrypted in Supabase)
+- Backend: if `apify_api_key` is set on the profile, run the Apify actor as part of the discovery pipeline
+- Document clearly that this is optional and user-provided
+
+---
+
+## Confirmed Passing Tests (as of 2026-06-21)
 
 ### Auth & Security
-- ✅ CORS allows `rbot-mu.vercel.app` — headers: `access-control-allow-origin`, `allow-credentials: true`
+- ✅ CORS allows `rbot-mu.vercel.app` — `access-control-allow-origin`, `allow-credentials: true`
 - ✅ CORS blocks `evil-site.com` → 400
-- ✅ All 13 protected endpoints return 403 with no Bearer header
-- ✅ All endpoints return 401 with a fake/garbage JWT
-- ✅ Token is validated against Supabase project `ogecgrhzretnkgehyifi`
+- ✅ All protected endpoints return 403/401 with invalid/missing Bearer header
+- ✅ Token validated against Supabase project `ogecgrhzretnkgehyifi`
 
 ### Frontend Routing (unauthenticated)
-- ✅ `/dashboard`, `/onboarding`, `/jobs`, `/tracker`, `/profile`, `/gate` → all 307 redirect to `/login`
-- ✅ `/login` → 200 (public)
+- ✅ `/dashboard`, `/onboarding`, `/jobs`, `/tracker`, `/profile`, `/gate` → 307 redirect to `/login`
+- ✅ `/login` → 200
 
-### OTP Error Handling
+### OTP Auth Flow
 - ✅ Empty email → `{"error":"Email is required"}`
-- ✅ Missing email field → `{"error":"Email is required"}`
-- ✅ Missing fields on verify → `{"error":"Missing required fields"}`
 - ✅ Wrong secret code → `{"error":"Invalid access code."}`
-- ✅ Correct secret, no active OTP → `{"error":"Invalid or expired code. Request a new one."}`
+- ✅ Mixed-case OTP now verified correctly (fixed F-OTP)
 
-### API (authenticated, post B-1 fix)
-- ✅ `GET /profile/` → 200 with profile data
-- ✅ `PATCH /profile/` empty body → 200 `{"status":"no_changes"}`
-- ✅ `PATCH /profile/` with data → 200, updates DB
-- ✅ `PATCH /profile/onboarding/complete` → 200 `{"status":"onboarding_complete"}`
-- ✅ `GET /jobs/` → 200 `{"data":[],"total":0}`
-- ✅ `GET /jobs/?min_fit=70` → 200 (filtered)
-- ✅ `GET /jobs/?min_fit=150` → 422 "Input should be ≤ 100"
-- ✅ `GET /jobs/?min_fit=-5` → 422 "Input should be ≥ 0"
-- ✅ `GET /jobs/?limit=500` → 422 "Input should be ≤ 200"
-- ✅ `GET /jobs/?limit=0` → 422 "Input should be ≥ 1"
-- ✅ `POST /jobs/{id}/tailor` (recovery incomplete) → `{"error":"Resume Quality Recovery must complete..."}`
-- ✅ `GET /apply/sessions` → 200 `{"data":[]}`
-- ✅ `GET /outreach/` → 200 `{"data":[]}`
-- ✅ `POST /outreach/generate` → 200 `{"status":"outreach_queued"}`
-- ✅ `GET /intake/evidence` → 200 `{"data":[]}`
+### API (authenticated)
+- ✅ `GET /profile/` → 200
+- ✅ `PATCH /profile/` → 200
+- ✅ `PATCH /profile/onboarding/complete` → 200
+- ✅ `GET /jobs/` → 200
+- ✅ `GET /jobs/?min_fit=70` → 200
+- ✅ `GET /jobs/?min_fit=150` → 422 validation error
+- ✅ `POST /jobs/{id}/tailor` (recovery incomplete) → blocked with correct error
+- ✅ `GET /apply/sessions` → 200
+- ✅ `GET /outreach/` → 200
+- ✅ `GET /intake/evidence` → 200
 - ✅ `GET /health` → 200 `{"status":"ok","env":"production"}`
-
----
-
-## Recommended Fix Order
-
-1. **D-1** — Blocking. Without a Celery worker + Redis, the entire onboarding pipeline (resume parsing, profile graph, job scoring, tailoring) is dead. Create a Redis Key-Value instance and a background worker service on Render.
-2. **F-2** — High UX impact. Add a 2-minute timeout + retry/skip fallback to `RecoveryStep.tsx`.
-3. **F-3** — Medium UX. Track `completed` state per onboarding step; show grey dot for skipped steps.
-4. **F-1** — Low priority, only affects non-browser consumers checking status codes precisely.
