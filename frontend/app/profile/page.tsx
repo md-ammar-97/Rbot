@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { DiagnosisDonut, DimensionBars } from "@/components/recovery/DiagnosisChart";
 import { EvidenceGapCard } from "@/components/recovery/EvidenceGapCard";
-import { CheckCircle2, AlertCircle, ArrowRight, Upload, Github, Linkedin } from "lucide-react";
+import { CheckCircle2, AlertCircle, ArrowRight, Upload, Github, Linkedin, FileWarning } from "lucide-react";
 
 interface DiagnosisDimension {
   score:     number;
@@ -60,6 +60,9 @@ export default async function ProfilePage() {
   const confidence    = (profile?.profile_graph?.evidence_confidence as string) ?? "unknown";
   const overallScore  = diagnosis ? Math.round(diagnosis.overall_score * 100) : completeness;
 
+  // True "no data" state: no recovery case AND no profile graph at all
+  const hasNoData = !recoveryCase && completeness === 0;
+
   return (
     <AppShell title="Resume Recovery" avatarUrl={profile?.avatar_url} userName={profile?.full_name}>
       <div className="mb-6">
@@ -67,10 +70,31 @@ export default async function ProfilePage() {
         <p className="text-[14px] text-pmfit-text-secondary mt-0.5">
           {recoveryDone
             ? "Your profile is complete and ready for job matching."
+            : hasNoData
+            ? "Upload your resume to get started with PMFit."
             : "Complete your profile to unlock job matching and applications."}
         </p>
       </div>
 
+      {/* No data — prominent onboarding CTA */}
+      {hasNoData && (
+        <div className="mb-6 rounded-2xl border-2 border-dashed border-pmfit-blue/40 bg-pmfit-blue-subtle/30 p-8 flex flex-col items-center text-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-pmfit-blue/10 flex items-center justify-center">
+            <FileWarning size={32} className="text-pmfit-blue" />
+          </div>
+          <div>
+            <p className="text-[17px] font-bold text-pmfit-text">No profile data yet</p>
+            <p className="text-[14px] text-pmfit-text-secondary mt-1 max-w-md">
+              You haven&apos;t uploaded your resume or connected any evidence sources. Complete onboarding to unlock job matching, fit scoring, and tailored applications.
+            </p>
+          </div>
+          <Link href="/onboarding?force=true" className="btn-primary h-10 px-6 text-[14px] flex items-center gap-2">
+            Start profile setup <ArrowRight size={15} />
+          </Link>
+        </div>
+      )}
+
+      {/* Recovery complete banner */}
       {recoveryDone && (
         <div className="mb-6 rounded-2xl border border-pmfit-teal/30 bg-pmfit-teal-subtle p-5 flex items-center gap-4">
           <CheckCircle2 size={22} className="text-pmfit-teal shrink-0" />
@@ -80,7 +104,7 @@ export default async function ProfilePage() {
               Your baseline resume has been generated. Start browsing matched roles.
             </p>
           </div>
-          <Link href="/jobs" className="btn-primary text-[13px] h-9 px-4 ml-auto shrink-0">
+          <Link href="/jobs" className="btn-primary text-[13px] h-9 px-4 ml-auto shrink-0 flex items-center gap-1.5">
             Browse Jobs <ArrowRight size={14} />
           </Link>
         </div>
@@ -133,9 +157,9 @@ export default async function ProfilePage() {
             <h2 className="text-[16px] font-bold text-pmfit-text mb-4">Evidence Sources</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { icon: Upload,   label: "Replace Resume",     href: "/onboarding" },
-                { icon: Linkedin, label: "Add LinkedIn Export", href: "/onboarding?step=linkedin" },
-                { icon: Github,   label: "Connect GitHub",      href: "/onboarding?step=github" },
+                { icon: Upload,   label: "Upload Resume",       href: "/onboarding?force=true&step=resume" },
+                { icon: Linkedin, label: "Add LinkedIn Export", href: "/onboarding?force=true&step=linkedin" },
+                { icon: Github,   label: "Connect GitHub",      href: "/onboarding?force=true&step=github" },
               ].map(({ icon: Icon, label, href }) => (
                 <Link
                   key={href}
@@ -163,7 +187,21 @@ export default async function ProfilePage() {
             )}
           </div>
 
-          {openQuestions.length === 0 ? (
+          {/* No data at all — prompt onboarding */}
+          {hasNoData ? (
+            <div className="card p-6 text-center border border-pmfit-orange/30">
+              <AlertCircle size={32} className="text-pmfit-orange mx-auto mb-3" />
+              <p className="text-[15px] font-semibold text-pmfit-text">Profile not started</p>
+              <p className="text-[13px] text-pmfit-text-secondary mt-1 mb-4">
+                Upload your resume to generate your quality diagnosis and identify evidence gaps.
+              </p>
+              <Link href="/onboarding?force=true" className="btn-primary text-[13px] h-9 px-4 inline-flex items-center gap-1.5">
+                Set up profile <ArrowRight size={13} />
+              </Link>
+            </div>
+
+          /* Recovery case exists but all questions answered */
+          ) : recoveryCase && openQuestions.length === 0 ? (
             <div className="card p-6 text-center">
               <CheckCircle2 size={36} className="text-pmfit-teal mx-auto mb-3" />
               <p className="text-[15px] font-semibold text-pmfit-text">All gaps resolved</p>
@@ -171,6 +209,8 @@ export default async function ProfilePage() {
                 No open questions. Your profile is well-evidenced.
               </p>
             </div>
+
+          /* Open questions to answer */
           ) : (
             <div className="space-y-3">
               {[...openQuestions]

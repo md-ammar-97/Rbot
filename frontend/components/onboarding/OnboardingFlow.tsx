@@ -21,10 +21,12 @@ const STEP_LABELS: Record<Step, string> = {
 interface Props {
   user:           { id: string; email: string; name?: string };
   recoveryStatus: string;
+  initialStep?:   string;
 }
 
-export default function OnboardingFlow({ user, recoveryStatus }: Props) {
-  const [currentStep, setCurrentStep] = useState<Step>("resume");
+export default function OnboardingFlow({ user, recoveryStatus, initialStep }: Props) {
+  const resolvedStart = (STEPS.includes(initialStep as Step) ? initialStep : "resume") as Step;
+  const [currentStep, setCurrentStep] = useState<Step>(resolvedStart);
   const [completed,   setCompleted]   = useState<Set<Step>>(new Set());
   const stepIndex = STEPS.indexOf(currentStep);
 
