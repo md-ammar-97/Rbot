@@ -1,15 +1,42 @@
-# RBot — Design System & UI Specification
+# PMFit — Design System & UI Specification
 
-**Version:** 1.0  
-**Date:** 2026-06-20  
-**Design Language:** Apple Human Interface Guidelines (web interpretation)  
-**Stack:** Next.js 14 + Tailwind CSS + shadcn/ui  
+**Version:** 2.0  
+**Date:** 2026-06-21  
+**Design Language:** PMFit Design System  
+**Stack:** Next.js 14 + Tailwind CSS + Framer Motion + Recharts  
+
+> **Note:** v1.0 used Apple HIG tokens (`apple.*`). The active design system is the PMFit token set defined in `frontend/tailwind.config.js`. The color palette, typography, and component classes below reflect the **current** implementation.
 
 ---
 
-## 1. Design Philosophy
+## PMFit Design Tokens (active)
 
-RBot follows the **Apple Human Interface Guidelines** adapted for web — the same principles that make Apple products feel effortless:
+| Token | Hex | Tailwind class | Usage |
+|---|---|---|---|
+| `pmfit-blue` | `#0052CC` | `bg-pmfit-blue` | Primary CTA, active nav, accent |
+| `pmfit-blue-light` | `#1D7EFF` | `bg-pmfit-blue-light` | Secondary highlights |
+| `pmfit-blue-subtle` | `#EBF2FF` | `bg-pmfit-blue-subtle` | Accent backgrounds |
+| `pmfit-purple` | `#6B5ACD` | `bg-pmfit-purple` | Insights, evidence accent |
+| `pmfit-teal` | `#20C997` | `bg-pmfit-teal` | Success, recovery positive |
+| `pmfit-orange` | `#FF8C00` | `bg-pmfit-orange` | Warnings, category tags |
+| `pmfit-red` | `#E63946` | `bg-pmfit-red` | Errors, alerts |
+| `pmfit-navy` | `#111827` | `bg-pmfit-navy` | Sidebar background |
+| `pmfit-bg` | `#F5F7FF` | `bg-pmfit-bg` | Main content background |
+| `pmfit-surface` | `#FFFFFF` | `bg-white` | Cards |
+| `pmfit-border` | `#E5E7EB` | `border-pmfit-border` | Dividers, input borders |
+| `pmfit-text` | `#1A1A1A` | `text-pmfit-text` | Headlines, body |
+| `pmfit-text-secondary` | `#6B7280` | `text-pmfit-text-secondary` | Labels, metadata |
+| `pmfit-text-muted` | `#9CA3AF` | `text-pmfit-text-muted` | Placeholders, disabled |
+
+**Typography:** Inter (via `next/font/google`), variable `--font-inter`  
+**Animations:** Framer Motion — `staggerChildren`, `useInView`, `AnimatePresence`, spring physics  
+**Charts:** Recharts — `RadialBarChart` (FitGauge), `PieChart` (recovery donut), `BarChart` (score breakdown)
+
+---
+
+## 1. Design Philosophy (v1 — historical reference)
+
+The original design followed the **Apple Human Interface Guidelines** adapted for web — the same principles that make Apple products feel effortless:
 
 - **Clarity** — text is legible, icons are precise, content is unobstructed. Decoration exists to serve communication, not impress.
 - **Deference** — the UI defers to content. Chrome, borders, and backgrounds recede so the user's data — jobs, resumes, scores — takes center stage.

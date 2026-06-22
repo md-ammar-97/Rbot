@@ -1,9 +1,9 @@
 # Product Requirements Document
-## RBot — AI Job Application Co-Pilot for Product Managers
+## PMFit — AI Job Application Co-Pilot for Product Managers
 
-**Version:** 1.0  
-**Date:** 2026-06-20  
-**Status:** Draft  
+**Version:** 1.1  
+**Date:** 2026-06-21  
+**Status:** Implementation in progress  
 
 ---
 

@@ -40,9 +40,9 @@ export default function GitHubStep({ userId, onNext, onComplete }: Props) {
 
   return (
     <div>
-      <h2 className="text-[22px] font-semibold text-apple-text mb-2">Connect a GitHub repo</h2>
-      <p className="text-[15px] text-apple-text-secondary mb-6">
-        RBot reads your README and docs to surface concrete PM evidence:
+      <h2 className="text-[22px] font-semibold text-pmfit-text mb-2">Connect a GitHub repo</h2>
+      <p className="text-[15px] text-pmfit-text-secondary mb-6">
+        PMFit reads your README and docs to surface concrete PM evidence:
         technical depth, ownership signals, and outcome metrics.
       </p>
 
@@ -53,7 +53,7 @@ export default function GitHubStep({ userId, onNext, onComplete }: Props) {
           value={owner}
           onChange={(e) => setOwner(e.target.value)}
         />
-        <span className="self-center text-apple-text-tertiary text-[17px]">/</span>
+        <span className="self-center text-pmfit-text-muted text-[17px]">/</span>
         <input
           className="input flex-1"
           placeholder="repo-name"
@@ -63,10 +63,10 @@ export default function GitHubStep({ userId, onNext, onComplete }: Props) {
       </div>
 
       {status === "error" && (
-        <p className="text-[14px] text-apple-destructive mb-4">{message}</p>
+        <p className="text-[14px] text-pmfit-red mb-4">{message}</p>
       )}
       {status === "done" && (
-        <p className="text-[14px] text-apple-success mb-4 font-medium">✓ {message}</p>
+        <p className="text-[14px] text-pmfit-teal mb-4 font-medium">✓ {message}</p>
       )}
 
       <button

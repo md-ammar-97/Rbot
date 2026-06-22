@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RBot | Job Discovery Engine</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=Geist:wght@500;600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<!-- Tailwind Theme Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#fbf8ff",
+                    "surface-bright": "#fbf8ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004e5c",
+                    "on-primary-fixed": "#001356",
+                    "on-surface": "#191b24",
+                    "outline-variant": "#c4c5d9",
+                    "background": "#fbf8ff",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#e2e1ef",
+                    "inverse-on-surface": "#f0effd",
+                    "secondary-fixed": "#e9ddff",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#d7f6ff",
+                    "on-surface-variant": "#434656",
+                    "secondary": "#6b38d4",
+                    "tertiary-fixed-dim": "#4cd7f6",
+                    "tertiary-container": "#00788c",
+                    "surface-container": "#ededfa",
+                    "on-secondary-fixed": "#23005c",
+                    "primary-fixed": "#dde1ff",
+                    "error-container": "#ffdad6",
+                    "on-primary-container": "#efefff",
+                    "primary-container": "#2e5bff",
+                    "inverse-surface": "#2e303a",
+                    "primary": "#0040e0",
+                    "surface-container-highest": "#e2e1ef",
+                    "surface-tint": "#124af0",
+                    "inverse-primary": "#b8c3ff",
+                    "surface-container-low": "#f3f2ff",
+                    "on-background": "#191b24",
+                    "on-secondary-container": "#fffbff",
+                    "on-error-container": "#93000a",
+                    "tertiary": "#005e6e",
+                    "primary-fixed-dim": "#b8c3ff",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "on-tertiary-fixed": "#001f26",
+                    "outline": "#747688",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed-variant": "#0035be",
+                    "secondary-container": "#8455ef",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "on-primary": "#ffffff",
+                    "surface-dim": "#d9d9e6",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#e7e7f4",
+                    "tertiary-fixed": "#acedff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base-unit": "8px",
+                    "section-gap": "48px",
+                    "gutter": "16px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "body-base": ["Inter"],
+                    "label-caps": ["Geist"],
+                    "headline-md": ["Inter"],
+                    "display-lg-mobile": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "mono-technical": ["Geist"]
+            },
+            "fontSize": {
+                    "body-base": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display-lg-mobile": ["36px", {"lineHeight": "42px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "mono-technical": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .fit-score-gradient {
+            background: linear-gradient(135deg, #10b981, #f59e0b);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #0040e0, #6b38d4);
+        }
+        .shimmer {
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .aura-pulse {
+            animation: aura 3s infinite ease-in-out;
+        }
+        @keyframes aura {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0, 64, 224, 0.4); }
+            50% { box-shadow: 0 0 20px 5px rgba(0, 64, 224, 0.2); }
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-base overflow-x-hidden">
+<!-- Sidebar Navigation Shell -->
+<aside class="hidden lg:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-surface-container-lowest shadow-xl z-40 border-r border-outline-variant/30">
+<div class="p-6">
+<h1 class="font-headline-md text-headline-md font-extrabold text-primary mb-1">RBot Co-Pilot</h1>
+<p class="text-label-caps font-label-caps text-on-surface-variant opacity-70">High-Performance Mode</p>
+</div>
+<nav class="flex-1 px-2 py-4 space-y-1">
+<!-- Active Tab: Job Discovery -->
+<a class="bg-primary-container text-on-primary-container rounded-xl flex items-center px-4 py-3 mx-2 my-1 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">search</span>
+<span class="font-label-caps text-label-caps">Job Discovery</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant/50 mx-2 my-1 rounded-xl flex items-center px-4 py-3 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined mr-3">history_edu</span>
+<span class="font-label-caps text-label-caps">Resume Recovery</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant/50 mx-2 my-1 rounded-xl flex items-center px-4 py-3 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined mr-3">query_stats</span>
+<span class="font-label-caps text-label-caps">Tracker</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant/50 mx-2 my-1 rounded-xl flex items-center px-4 py-3 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined mr-3">verified</span>
+<span class="font-label-caps text-label-caps">Evidence Conf</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant/50 mx-2 my-1 rounded-xl flex items-center px-4 py-3 transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</nav>
+<div class="px-4 py-6 border-t border-outline-variant/20">
+<button class="primary-gradient text-white w-full py-3 rounded-xl font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">bolt</span>
+                Apply with RBot
+            </button>
+</div>
+<div class="px-4 py-4 space-y-1">
+<a class="text-on-surface-variant flex items-center px-4 py-2 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+<a class="text-on-surface-variant flex items-center px-4 py-2 hover:text-error transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">logout</span>
+<span class="font-label-caps text-label-caps">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 min-h-screen p-gutter md:p-container-padding relative">
+<!-- Header / Top Bar for Desktop/Mobile Pivot -->
+<header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+<div>
+<h2 class="font-display-lg text-display-lg font-extrabold text-on-surface tracking-tight">Market Intelligence</h2>
+<p class="text-body-base text-on-surface-variant max-w-md">Discover roles where your unique evidence profile creates unfair advantages.</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant">search</span>
+<input class="pl-10 pr-4 py-3 rounded-full bg-surface-container border-none focus:ring-2 focus:ring-primary w-full md:w-64 glass-card transition-all" placeholder="Search roles, skills, or companies..." type="text"/>
+</div>
+<button class="p-3 bg-surface-container rounded-full text-on-surface-variant relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/20 shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a diverse tech executive with a confident expression. The lighting is soft and studio-quality against a clean, light-mode background, matching the high-performance SaaS brand aesthetic of RBot." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFqPhEr4Ew6369CsJCuATRxVTinOZ_G4IDHZJieqBDHfDrfJoKhjHyan5dwZfDuAWH_BQ4iVxDgAvhUwbdudfreKyfo_bfRVyRGfFAVuI0oN7NW_EiGBSIbKBKjiJjqnSV10liFmAHrATPvdTQICbbzCMgL5MQMjmSw4HhiUVMSTd6IMB6uG2832XpNuCxkgEEU-B9zUDuMbBP3uRXEw5HpNbK659cOcZ0mtyEDPATrEYwdY7ZZ6JRbRwsXMkZJE-YkZqV8mwAGem3"/>
+</div>
+</div>
+</header>
+<!-- Dynamic Filter Bar (Bento-lite) -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-section-gap">
+<button class="glass-card p-4 rounded-2xl flex items-center justify-between group hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-primary/10 text-primary rounded-lg group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">robot_2</span>
+</div>
+<span class="font-label-caps text-label-caps">Automation Eligible</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">chevron_right</span>
+</button>
+<button class="glass-card p-4 rounded-2xl flex items-center justify-between group hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-tertiary-container/10 text-tertiary rounded-lg group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">verified</span>
+</div>
+<span class="font-label-caps text-label-caps">High Evidence Match</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">chevron_right</span>
+</button>
+<button class="glass-card p-4 rounded-2xl flex items-center justify-between group hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-secondary-container/10 text-secondary rounded-lg group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">military_tech</span>
+</div>
+<span class="font-label-caps text-label-caps">Seniority: Lead+</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">chevron_right</span>
+</button>
+<button class="bg-surface-container border-2 border-dashed border-outline-variant p-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined">tune</span>
+<span class="font-label-caps text-label-caps">Advanced Filters</span>
+</button>
+</section>
+<!-- Job Discovery Feed (Asymmetric Bento Grid) -->
+<section class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+<!-- Featured Job (Large Card) -->
+<div class="xl:col-span-8 glass-card rounded-[2rem] p-8 shadow-2xl shadow-primary/5 hover:shadow-primary/10 transition-all group relative overflow-hidden">
+<!-- Aura background effect -->
+<div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl aura-pulse"></div>
+<div class="flex flex-col md:flex-row justify-between gap-6 relative z-10">
+<div class="flex gap-6">
+<div class="w-20 h-20 rounded-2xl bg-white shadow-md flex items-center justify-center p-4 border border-outline-variant/10">
+<img class="w-full object-contain" data-alt="A futuristic minimalist company logo for a space technology startup called Nebula. The logo features a stylized purple and blue nebula spiral on a crisp white square background. The aesthetic is clean, professional, and evocative of deep tech and innovation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuASfOOy9PxBtEM5sgHjImv-mowu-9BFApU9OkImP6nBvSweXn4ejGvgRvcBZFgoNMfSp1lTF13fm_iUj4wCvlaxx4ZOv6WAvowh3CyWr3J6pfUhP2x0rIwRP9c-NUSaTVIUJ6rE2xGpjgfdgXTy2gyc7I25NgyIleGpzaE_gytEC9gXGDXIBkZDxRGsa2h74MX-d_wH_PjxPM8Rl67k8IoNqi-JIvXFfvziBoBgihbly5_sTq_3dSx01Rl2fJT6i56mHUbzfRr41sXb"/>
+</div>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<span class="bg-primary/10 text-primary px-3 py-1 rounded-full text-label-caps font-label-caps">Featured Role</span>
+<span class="text-on-surface-variant/60">•</span>
+<span class="text-on-surface-variant text-label-caps font-label-caps">2 hours ago</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">Principal Systems Architect</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">location_on</span> San Francisco (Remote Eligible)
+                            </p>
+</div>
+</div>
+<!-- Fit Score UI -->
+<div class="flex flex-col items-center justify-center bg-white/40 p-6 rounded-3xl border border-white/60">
+<div class="relative w-24 h-24 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-dasharray="251.2" stroke-dashoffset="15" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-2xl font-black text-primary">94%</span>
+<span class="text-[10px] font-label-caps uppercase tracking-widest">Match</span>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 py-6 border-y border-outline-variant/20">
+<div>
+<p class="text-label-caps font-label-caps text-on-surface-variant mb-2">Top Skills Match</p>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 bg-tertiary-container/10 text-tertiary rounded-lg text-xs font-bold">Rust</span>
+<span class="px-3 py-1 bg-tertiary-container/10 text-tertiary rounded-lg text-xs font-bold">WASM</span>
+<span class="px-3 py-1 bg-surface-container text-on-surface-variant rounded-lg text-xs font-bold">+4 More</span>
+</div>
+</div>
+<div>
+<p class="text-label-caps font-label-caps text-on-surface-variant mb-2">Experience Delta</p>
+<div class="flex items-center gap-2">
+<span class="text-on-surface font-bold">10+ Years Required</span>
+<span class="material-symbols-outlined text-emerald-500" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<div>
+<p class="text-label-caps font-label-caps text-on-surface-variant mb-2">Salary Estimate</p>
+<p class="text-on-surface font-black text-lg">$240k - $310k <span class="text-on-surface-variant font-normal text-sm">USD</span></p>
+</div>
+</div>
+<div class="mt-8 flex flex-col sm:flex-row gap-4">
+<button class="primary-gradient text-white flex-1 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+<span class="material-symbols-outlined">auto_fix_high</span>
+                        Start Assisted Application
+                    </button>
+<button class="flex-1 py-4 rounded-2xl font-bold border border-outline text-on-surface hover:bg-surface-container transition-all">
+                        View Full Details
+                    </button>
+</div>
+</div>
+<!-- Side Cards / Secondary roles -->
+<div class="xl:col-span-4 grid grid-cols-1 gap-6">
+<!-- Match Card 1 -->
+<div class="glass-card p-6 rounded-3xl border-l-4 border-emerald-500 hover:translate-x-1 transition-all cursor-pointer group">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center p-2">
+<img class="w-full" data-alt="A minimal and sleek company logo for a financial technology firm called Vault. The logo features a solid black geometric shield icon on a pure white background. The visual style is premium, secure, and modern light-mode corporate." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7JQTo2fUjSjkpZmRmK4STHEtKoPkd14-xDQDoUnDwJp96TV22-LvN_sLjYiwOBtixF5zudSZTpCV_N7INUQlxWWc_CzIfsijejRnQ5nNOjyqKQV4EWceFQM5FC5CDZ99ADLZlqEzk7vZS2oDfLCW2USGMMyfqkXkUaZlUfr1V3SOmkUydIqABQG7CKXQujIxonnIJ_I3QMz7QPQzJJRCJLutyHaQwTK5828SB6a_PkCqOzFJQbBt3DDdXlj1jESHr3e8kTHVEfRo3"/>
+</div>
+<div class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">88% Match</div>
+</div>
+<h4 class="font-bold text-on-surface group-hover:text-primary transition-colors">Senior Product Designer</h4>
+<p class="text-sm text-on-surface-variant mb-4">Vault FinTech • New York</p>
+<div class="flex items-center gap-4 text-xs font-label-caps text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">payments</span> $180k+</span>
+<span class="flex items-center gap-1 text-emerald-600"><span class="material-symbols-outlined text-xs">rocket_launch</span> High Evidence</span>
+</div>
+</div>
+<!-- Match Card 2 -->
+<div class="glass-card p-6 rounded-3xl border-l-4 border-primary hover:translate-x-1 transition-all cursor-pointer group">
+<div class="flex justify-between items-start mb-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center p-2">
+<img class="w-full" data-alt="A creative technology company logo for a studio called Prism. The logo is a vibrant triangular prism dispersing light into a spectrum of bright colors on a clean white background. The aesthetic is energetic, artistic, and modern tech-driven." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNvOIfDn_I_RKvn2AbG9Fy3gDAQ1Fa5hIx1xd3RRrBg2l7eODumLLp7RTnGJ5vfckza5JBu5Rt8kYC3yDcd4NdvPi_-SZp7uvt40UwS-Urn2X_1Adrk33Z130YF8m3SPwVhJqW97Orqy0YEhRISPYb3TA6TEehXzFOekkPLSw0RcOHHRfmWVpVcAzcgkO7AzGe4uDwDYb90QOUQqzkXU_7xWxPHLouXjoxkMFtSNfjokEIW6GuUEyduu2C68OCnUeHf7t_MfW5gwKZ"/>
+</div>
+<div class="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">82% Match</div>
+</div>
+<h4 class="font-bold text-on-surface group-hover:text-primary transition-colors">AI Research Engineer</h4>
+<p class="text-sm text-on-surface-variant mb-4">Prism Studio • London (Hybrid)</p>
+<div class="flex items-center gap-4 text-xs font-label-caps text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">payments</span> £140k+</span>
+<span class="flex items-center gap-1 text-secondary"><span class="material-symbols-outlined text-xs">bolt</span> Fast Track</span>
+</div>
+</div>
+<!-- AI Insights Bento -->
+<div class="bg-primary p-6 rounded-3xl text-white relative overflow-hidden group shadow-lg shadow-primary/30">
+<div class="shimmer absolute inset-0 opacity-10"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-white/70">insights</span>
+<span class="font-label-caps text-[10px] uppercase tracking-widest text-white/70">Co-Pilot Insight</span>
+</div>
+<p class="text-sm font-medium leading-relaxed mb-4">"Roles in **Systems Architecture** are currently seeing a 14% increase in base salary for candidates with verified Rust experience. You have 3 projects that match."</p>
+<button class="text-xs font-bold underline underline-offset-4 hover:text-secondary-fixed transition-colors">Optimize Evidence Profile</button>
+</div>
+<!-- 3D style decoration -->
+<div class="absolute -bottom-4 -right-4 w-20 h-20 bg-white/20 rounded-full blur-2xl"></div>
+</div>
+</div>
+</section>
+<!-- More Roles Feed (Standard Grid) -->
+<section class="mt-section-gap">
+<h3 class="font-headline-md text-headline-md mb-6">Discover More</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Repeatable Card Pattern -->
+<div class="glass-card p-6 rounded-3xl hover:border-primary/20 transition-all">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container"></div>
+<div>
+<h4 class="font-bold text-sm">Lead Frontend Architect</h4>
+<p class="text-xs text-on-surface-variant">Voxel Interactive</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-auto">
+<div class="flex items-center gap-1">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-bold">76% Fit Score</span>
+</div>
+<button class="text-primary font-bold text-xs hover:underline">Details</button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="glass-card p-6 rounded-3xl hover:border-primary/20 transition-all">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container"></div>
+<div>
+<h4 class="font-bold text-sm">DevOps Specialist</h4>
+<p class="text-xs text-on-surface-variant">CloudFlow</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-auto">
+<div class="flex items-center gap-1">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-bold">71% Fit Score</span>
+</div>
+<button class="text-primary font-bold text-xs hover:underline">Details</button>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass-card p-6 rounded-3xl hover:border-primary/20 transition-all">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container"></div>
+<div>
+<h4 class="font-bold text-sm">Staff Product Manager</h4>
+<p class="text-xs text-on-surface-variant">Horizon Analytics</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-auto">
+<div class="flex items-center gap-1">
+<div class="w-2 h-2 rounded-full bg-amber-500"></div>
+<span class="text-[10px] font-bold">64% Fit Score</span>
+</div>
+<button class="text-primary font-bold text-xs hover:underline">Details</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Background decorative element -->
+<div class="fixed -bottom-24 -left-24 w-[40rem] h-[40rem] bg-secondary/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+</main>
+<!-- Footer Shell -->
+<footer class="lg:ml-64 w-full py-base-unit px-gutter flex flex-col md:flex-row justify-between items-center gap-4 border-t border-outline-variant/20 bg-surface-container-lowest text-on-surface-variant mt-section-gap">
+<div class="font-headline-md text-sm font-bold text-on-surface">RBot AI</div>
+<p class="text-label-caps font-label-caps text-xs opacity-60">© 2024 RBot AI. High-Performance Career Engine.</p>
+<div class="flex gap-6">
+<a class="text-label-caps font-label-caps text-xs hover:text-primary transition-colors" href="#">Terms</a>
+<a class="text-label-caps font-label-caps text-xs hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="text-label-caps font-label-caps text-xs hover:text-primary transition-colors" href="#">API Docs</a>
+<a class="text-label-caps font-label-caps text-xs hover:text-primary transition-colors" href="#">Help Center</a>
+</div>
+</footer>
+<!-- Mobile Navigation Shell (Pivot) -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/20 flex justify-around items-center p-4 z-50">
+<a class="text-primary flex flex-col items-center" href="#">
+<span class="material-symbols-outlined">search</span>
+<span class="text-[10px] font-bold">Discover</span>
+</a>
+<a class="text-on-surface-variant flex flex-col items-center opacity-60" href="#">
+<span class="material-symbols-outlined">history_edu</span>
+<span class="text-[10px]">Resume</span>
+</a>
+<a class="text-on-surface-variant flex flex-col items-center opacity-60" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+<span class="text-[10px]">Tracker</span>
+</a>
+<a class="text-on-surface-variant flex flex-col items-center opacity-60" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px]">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions for Fit Score animation entry
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.glass-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 100 * index);
+            });
+        });
+    </script>
+</body></html>

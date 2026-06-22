@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RBot | Job Tracker Kanban</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&amp;family=Geist:wght@500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#fbf8ff",
+                    "surface-bright": "#fbf8ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004e5c",
+                    "on-primary-fixed": "#001356",
+                    "on-surface": "#191b24",
+                    "outline-variant": "#c4c5d9",
+                    "background": "#fbf8ff",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#e2e1ef",
+                    "inverse-on-surface": "#f0effd",
+                    "secondary-fixed": "#e9ddff",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#d7f6ff",
+                    "on-surface-variant": "#434656",
+                    "secondary": "#6b38d4",
+                    "tertiary-fixed-dim": "#4cd7f6",
+                    "tertiary-container": "#00788c",
+                    "surface-container": "#ededfa",
+                    "on-secondary-fixed": "#23005c",
+                    "primary-fixed": "#dde1ff",
+                    "error-container": "#ffdad6",
+                    "on-primary-container": "#efefff",
+                    "primary-container": "#2e5bff",
+                    "inverse-surface": "#2e303a",
+                    "primary": "#0040e0",
+                    "surface-container-highest": "#e2e1ef",
+                    "surface-tint": "#124af0",
+                    "inverse-primary": "#b8c3ff",
+                    "surface-container-low": "#f3f2ff",
+                    "on-background": "#191b24",
+                    "on-secondary-container": "#fffbff",
+                    "on-error-container": "#93000a",
+                    "tertiary": "#005e6e",
+                    "primary-fixed-dim": "#b8c3ff",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "on-tertiary-fixed": "#001f26",
+                    "outline": "#747688",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed-variant": "#0035be",
+                    "secondary-container": "#8455ef",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "on-primary": "#ffffff",
+                    "surface-dim": "#d9d9e6",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#e7e7f4",
+                    "tertiary-fixed": "#acedff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base-unit": "8px",
+                    "section-gap": "48px",
+                    "gutter": "16px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "body-base": ["Inter"],
+                    "label-caps": ["Geist"],
+                    "headline-md": ["Inter"],
+                    "display-lg-mobile": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "mono-technical": ["Geist"]
+            },
+            "fontSize": {
+                    "body-base": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display-lg-mobile": ["36px", {"lineHeight": "42px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "mono-technical": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #fbf8ff; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kanban-column {
+            min-height: calc(100vh - 180px);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 30px -15px rgba(0, 64, 224, 0.15);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 20px 40px -20px rgba(0, 64, 224, 0.25);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e1ef; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- SideNavBar Integration -->
+<aside class="hidden lg:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container dark:bg-inverse-surface border-r border-outline-variant/30 z-40 shadow-2xl shadow-primary/10">
+<div class="p-6">
+<div class="flex items-center gap-3 mb-8">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white shadow-lg">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md font-extrabold text-primary leading-tight">RBot Co-Pilot</h2>
+<p class="font-label-caps text-label-caps opacity-70">High-Performance Mode</p>
+</div>
+</div>
+<nav class="space-y-1">
+<!-- Job Discovery -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+<span class="font-label-caps text-label-caps">Job Discovery</span>
+</a>
+<!-- Resume Recovery -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span class="font-label-caps text-label-caps">Resume Recovery</span>
+</a>
+<!-- Tracker (ACTIVE) -->
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container dark:bg-primary text-on-primary-container dark:text-on-primary rounded-xl transition-all duration-200 shadow-sm" href="#">
+<span class="material-symbols-outlined" data-icon="query_stats" style="font-variation-settings: 'FILL' 1;">query_stats</span>
+<span class="font-label-caps text-label-caps">Tracker</span>
+</a>
+<!-- Evidence Conf -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="verified">verified</span>
+<span class="font-label-caps text-label-caps">Evidence Conf</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</nav>
+</div>
+<div class="mt-auto p-4 border-t border-outline-variant/20">
+<button class="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold flex items-center justify-center gap-2 mb-4 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined">add_circle</span>
+<span>Apply with RBot</span>
+</button>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-error transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-caps text-label-caps">Sign Out</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 h-screen flex flex-col relative overflow-hidden">
+<!-- Background Gradient Aura -->
+<div class="absolute top-0 right-0 w-full h-full pointer-events-none z-0 overflow-hidden">
+<div class="absolute -top-1/4 -right-1/4 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px]"></div>
+<div class="absolute top-1/2 -left-1/4 w-[600px] h-[600px] bg-secondary/5 rounded-full blur-[100px]"></div>
+</div>
+<!-- Header -->
+<header class="flex items-center justify-between px-gutter py-6 z-10">
+<div>
+<h1 class="font-display-lg text-[32px] font-extrabold tracking-tight text-on-surface flex items-center gap-3">
+                    Job Tracker 
+                    <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-sm font-bold animate-pulse">12 Active Apps</span>
+</h1>
+<p class="text-on-surface-variant font-body-base opacity-70">Manage your high-momentum career moves with AI-assisted tracking.</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="w-10 h-10 rounded-full border-2 border-white bg-surface-container" data-alt="A professional business woman portrait with soft studio lighting, modern minimalist background, used as a user avatar." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC2iuUdZ8lSa-iFpOakczkhBPc-ThaNPLI7184Czh1sPCxfk9T_X3Q-GWRiCn1XgPsRc9ioONhhgdQkrcMG__DiYHlCTwM8Ms_RA5PRoFHTw4tFaA4dB5cLZy6Oq04ygZU5ANuNzL893SMZv03ckHxMHqHUY3vus4ImXzfvX6FBxYyLeFtvULpCR_g7xusY674JeKgOYqyR_9O2vcsPk7v478UR5llrsqIflc_Cn1W7ElqPcNJpdCa4empAwmWRT7EaFWJUtkgTuZIx')"></div>
+<div class="w-10 h-10 rounded-full border-2 border-white bg-primary-container flex items-center justify-center text-white font-bold text-xs">+3</div>
+</div>
+<button class="flex items-center gap-2 px-6 py-3 bg-white border border-outline-variant/30 rounded-xl shadow-sm hover:shadow-md transition-all font-bold text-primary">
+<span class="material-symbols-outlined">filter_list</span>
+                    Filter
+                </button>
+</div>
+</header>
+<!-- Kanban Board Container -->
+<div class="flex-1 overflow-x-auto px-gutter pb-8 z-10 custom-scrollbar">
+<div class="flex gap-6 h-full min-w-max pb-4">
+<!-- Saved Column -->
+<div class="w-80 flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="font-label-caps text-label-caps flex items-center gap-2 text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                            Saved (4)
+                        </h3>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button>
+</div>
+<div class="kanban-column glass-panel rounded-2xl p-3 flex flex-col gap-4">
+<!-- Card 1 -->
+<div class="bg-white rounded-xl p-4 card-shadow card-hover transition-all cursor-grab active:cursor-grabbing border border-white/50 group">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant/10 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="The minimalist logo for a tech startup called Nebula, featuring a stylized violet and blue galaxy swirl against a white background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSnek7LEA7FyBZkcHjKYFSBK2ELcaAHHlPsrCXewYHBvCWi1dWfSe_mGOTJEZrbnyYqvXruBrKwk2i4AmWj1Q3btfUlWDy5lRKQo6b5hEMlPHZ5_1HOQjQnAl3pEHV5K6I5bdT4Yk2o9KVxy19-g2LNcVs6-LuQtxej0yaFGLKTfK4FlWBuRNoV3Mujba4XokOfZdLUaAnLG6Bgim0gUHZlWKyg7L9ek2kfnG7REv5MUi7l6ZuU3Il9fKz4HJ4yRTMR_8u3VLx77iv"/>
+</div>
+<span class="bg-surface-container text-on-surface-variant text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Product</span>
+</div>
+<h4 class="font-headline-md text-base font-bold text-on-surface mb-1">Senior UX Designer</h4>
+<p class="text-sm text-on-surface-variant mb-4">Nebula Cloud Systems</p>
+<div class="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[18px]">magic_button</span>
+<span class="text-[11px] font-bold uppercase tracking-tight">Prepare Outreach Draft</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">arrow_forward</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white rounded-xl p-4 card-shadow card-hover transition-all cursor-grab active:cursor-grabbing border border-white/50 group">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant/10 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A sleek corporate logo for Stripe, clean typography and vibrant purple accents in a high-tech studio environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeRvP3PzCjVPlNNkkkiuNNo-l4Xs87i45hRpRI7z4N7HDGFqKfTQv47x9QjNHEpmzI2ObnjAagO9nyPGsR5mRxUAajec_MyOCBmcfYUCZ6vwpV7brWxQNVMp9LIDb7kiyR_JNZuj5nTsD7aJKykl1lHM7POpdNfnp0C3KHm4Vsj7JFT6HirKtSDmB27jgT3cr-J3UmrZI07_gknJIs_4_vBMwsz__OL7JGJPPD4ZC1mfYh3LTxzXZebrdpffy-ZdicwgRtMK7sedcg"/>
+</div>
+<span class="bg-surface-container text-on-surface-variant text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Fintech</span>
+</div>
+<h4 class="font-headline-md text-base font-bold text-on-surface mb-1">Lead Developer</h4>
+<p class="text-sm text-on-surface-variant mb-4">Stripe Payments</p>
+<div class="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[18px]">history_edu</span>
+<span class="text-[11px] font-bold uppercase tracking-tight">Review Requirements</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Applied Column -->
+<div class="w-80 flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="font-label-caps text-label-caps flex items-center gap-2 text-primary">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+                            Applied (3)
+                        </h3>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button>
+</div>
+<div class="kanban-column glass-panel rounded-2xl p-3 flex flex-col gap-4">
+<div class="bg-white rounded-xl p-4 card-shadow card-hover transition-all cursor-grab active:cursor-grabbing border border-white/50 group">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant/10 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="The bright colorful Google multi-colored G logo isolated on a clean white professional background for a technology company." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgu-5j0vJ2nas8pgAPpVt4db0scaJy2rvii3s6F4VMkZXD0BdHuPehq-tP7krj7L0E5ciWpF6TtI9szvwZo9xVFSJOZc4K2wgwQ4FdPS8hyaNOmvtFvhz9unLlk7PJI0lAZHLwAuz20Zo7rrs9gh2PyzGlHyw52863a76nbR7wpCyNt4UvbfFjd6KPAWGOxZpZHeVqDz6npm16ztmc47wWmJ0nieJu0thi-PwXzAxR-Ty7Oj0NElUGhbP91QyFKxYvD-3MpWpTJKGh"/>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="bg-primary-container text-on-primary-container text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Wait</span>
+<span class="text-[10px] text-on-surface-variant">3 days ago</span>
+</div>
+</div>
+<h4 class="font-headline-md text-base font-bold text-on-surface mb-1">Creative Director</h4>
+<p class="text-sm text-on-surface-variant mb-4">Google Labs</p>
+<div class="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[18px]">alternate_email</span>
+<span class="text-[11px] font-bold uppercase tracking-tight">Send Follow-up</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Interviewing Column -->
+<div class="w-80 flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="font-label-caps text-label-caps flex items-center gap-2 text-secondary">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                            Interviewing (2)
+                        </h3>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button>
+</div>
+<div class="kanban-column glass-panel rounded-2xl p-3 flex flex-col gap-4">
+<div class="bg-white rounded-xl p-4 card-shadow card-hover transition-all cursor-grab active:cursor-grabbing border-secondary/20 border group relative">
+<div class="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-white shadow-lg animate-bounce">
+<span class="material-symbols-outlined text-sm">event</span>
+</div>
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant/10 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A bold orange and white logo for Reddit, featuring the iconic alien head Mascot on a minimalist modern tech background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKj0_vifDwoJoFcWNYr3KuL3LNrAlGQokcebqzdmABZbnYib_Zryl9SdWw8ItjUmYcNfLiRBl0xpEZM90SY_poZFVXnZDL7PGiQ2JT4dnJS-DCyHe-I5aK6nD69ODrUd8_cP5DCQNrf7cXoBjWoi892zbgOgMZ0EKoANJVqZbQgy5J0CmSk1eiXSpd0JLUXea8jtkibtwZ_xJcBod5Au6G0_AP2dTiygNairQ4loqP_H7o4wwcQROGvyYkxTVn1zo0etzAbdN9gequ"/>
+</div>
+<span class="bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Round 3</span>
+</div>
+<h4 class="font-headline-md text-base font-bold text-on-surface mb-1">Systems Architect</h4>
+<p class="text-sm text-on-surface-variant mb-4">Reddit Inc.</p>
+<div class="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-2 text-secondary">
+<span class="material-symbols-outlined text-[18px]">video_call</span>
+<span class="text-[11px] font-bold uppercase tracking-tight">Tech Panel (Oct 24)</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-secondary transition-colors">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Offer Column -->
+<div class="w-80 flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="font-label-caps text-label-caps flex items-center gap-2 text-emerald-600">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            Offer (1)
+                        </h3>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button>
+</div>
+<div class="kanban-column glass-panel rounded-2xl p-3 flex flex-col gap-4 bg-emerald-50/20">
+<div class="bg-white rounded-xl p-4 shadow-[0_15px_40px_-15px_rgba(16,185,129,0.3)] card-hover transition-all cursor-grab active:cursor-grabbing border-emerald-500/30 border group">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant/10 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A clean, professional Apple logo in dark grey against a crisp white background, representing luxury and high technology." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNChmQLGFEnSvMtuoMmpGNRq9heyP_dLRc71bGYyRno7Ac6CR2pRK0Skg_m-YP2Mbi-jmxHXSQDfzgVjhmTpEqjo9c5Bn-ts5Duc8OBEhGXDnNUB5K81HEo6iHG-IkDq49aL3acclockmH9kZQPdAiLMCifFHXP1MTJ7-MNBrf9pbbw9DNOmoK8c2gMDNP6g1T_6pTsD1AIiQTOiuJXfKu_uvKz8adEmZe0L_vUE_CcQGrWcS1XGZlDpH-MOz7oeVq4HlLHtT1hH0c"/>
+</div>
+<span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">High Match</span>
+</div>
+<h4 class="font-headline-md text-base font-bold text-on-surface mb-1">Senior Staff Engineer</h4>
+<p class="text-sm text-on-surface-variant mb-4">Apple Inc.</p>
+<div class="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-2 text-emerald-600">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span class="text-[11px] font-bold uppercase tracking-tight">Negotiate Package</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-emerald-600 transition-colors">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Archive Column -->
+<div class="w-80 flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="font-label-caps text-label-caps flex items-center gap-2 text-outline">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+                            Archive (2)
+                        </h3>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button>
+</div>
+<div class="kanban-column glass-panel rounded-2xl p-3 flex flex-col gap-4 opacity-60 hover:opacity-100 transition-opacity">
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/20 grayscale group">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-white flex items-center justify-center border border-outline-variant/10 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="The blue bird Twitter logo, clean and minimalist, presented in a high-quality digital marketing aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGuoGKBb__8aKZ6b1-qZZF2SdDxIhdbo8qyNzigCQtilMm2gVFtdxMX4z1mQcDsT58_pq3DlV33EywquJxsD5CrI_Do0R4H50HW1VkFp1QN-3fGo96ZJULBz8txXQB0h648OrV481N5TsPN_4unS_D9gyqb0Sl0Tj2ps3UBZ63jZRfyazzaFFVUat5oKbe9CX7G8Wr9_ua_ClkGVq1Oz5hBs9usnkIAMKGgvLtD2zdPJKUxZtCrRCvwy_BlWu8awgd9T1B4TDpwCER"/>
+</div>
+<span class="bg-white/50 text-outline text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Closed</span>
+</div>
+<h4 class="font-headline-md text-base font-bold text-on-surface-variant mb-1">UI/UX Lead</h4>
+<p class="text-sm text-on-surface-variant mb-4">X (Twitter)</p>
+<div class="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center gap-2 text-outline">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+<span class="text-[11px] font-bold uppercase tracking-tight">Post-Mortem Saved</span>
+</div>
+<span class="material-symbols-outlined text-outline opacity-0 group-hover:opacity-100 transition-opacity">restore</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action for Mobile (Hidden on Web per instructions) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center lg:hidden z-50 hover:scale-110 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+</button>
+<script>
+        // Micro-interaction for card dragging simulation (Visual only)
+        document.querySelectorAll('.card-hover').forEach(card => {
+            card.addEventListener('mousedown', () => {
+                card.style.cursor = 'grabbing';
+                card.style.zIndex = '100';
+            });
+            card.addEventListener('mouseup', () => {
+                card.style.cursor = 'grab';
+                card.style.zIndex = '1';
+            });
+        });
+
+        // Atmospheric Pulsing for AI Aura (Emerald badge)
+        const activeBadge = document.querySelector('.animate-pulse');
+        if(activeBadge) {
+            setInterval(() => {
+                activeBadge.style.boxShadow = `0 0 15px rgba(16, 185, 129, 0.4)`;
+                setTimeout(() => {
+                    activeBadge.style.boxShadow = `0 0 0px rgba(16, 185, 129, 0)`;
+                }, 1000);
+            }, 2000);
+        }
+    </script>
+</body></html>

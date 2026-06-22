@@ -4,8 +4,7 @@
 
 @layer base {
   :root {
-    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display",
-      "SF Pro Text", "Segoe UI", sans-serif;
+    --sidebar-width: 240px;
   }
 
   * {
@@ -17,34 +16,107 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  ::selection {
+    background: #0052CC22;
+    color: #0052CC;
+  }
 }
 
 @layer components {
+  /* ── Buttons ──────────────────────────────────── */
   .btn-primary {
-    @apply h-12 px-6 bg-apple-accent hover:bg-apple-accent-hover text-white
-           font-medium text-[17px] rounded-xl
-           transition-all duration-200 ease-apple
-           active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2
+           h-11 px-6 bg-pmfit-blue hover:brightness-110
+           text-white font-semibold text-[15px] rounded-xl
+           transition-all duration-150
+           active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-secondary {
-    @apply h-12 px-6 bg-transparent border border-apple-border
-           hover:bg-apple-surface text-apple-text
-           font-medium text-[17px] rounded-xl
-           transition-all duration-200 ease-apple
-           active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2
+           h-11 px-6 bg-white border border-pmfit-border
+           hover:bg-pmfit-bg text-pmfit-text
+           font-semibold text-[15px] rounded-xl
+           transition-all duration-150
+           active:scale-[0.97] disabled:opacity-50;
   }
 
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           h-9 px-4 bg-transparent
+           hover:bg-pmfit-bg text-pmfit-text-secondary
+           font-medium text-[14px] rounded-lg
+           transition-all duration-150;
+  }
+
+  /* ── Cards ────────────────────────────────────── */
   .card {
-    @apply bg-white rounded-2xl border border-apple-border
-           shadow-[0_2px_8px_rgba(0,0,0,0.06)];
+    @apply bg-white rounded-2xl border border-pmfit-border shadow-card;
   }
 
+  .card-hover {
+    @apply card hover:shadow-card-md hover:-translate-y-0.5 transition-all duration-200;
+  }
+
+  /* ── Inputs ───────────────────────────────────── */
   .input {
-    @apply h-12 px-4 w-full rounded-xl border border-apple-border
-           bg-white text-apple-text text-[17px]
-           placeholder:text-apple-text-tertiary
-           focus:outline-none focus:border-apple-accent
-           transition-colors duration-200;
+    @apply h-11 px-4 w-full rounded-xl border border-pmfit-border
+           bg-white text-pmfit-text text-[15px]
+           placeholder:text-pmfit-text-muted
+           focus:outline-none focus:ring-2 focus:ring-pmfit-blue/25 focus:border-pmfit-blue
+           transition-all duration-200;
+  }
+
+  /* ── Sidebar nav item ─────────────────────────── */
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl
+           text-[14px] font-medium text-white/70
+           hover:bg-pmfit-navy-hover hover:text-white
+           transition-all duration-150 cursor-pointer;
+  }
+
+  .sidebar-item-active {
+    @apply sidebar-item bg-pmfit-blue text-white;
+  }
+
+  /* ── Badges ───────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full
+           text-[11px] font-semibold uppercase tracking-wide;
+  }
+
+  .badge-blue   { @apply badge bg-pmfit-blue-subtle text-pmfit-blue; }
+  .badge-purple { @apply badge bg-pmfit-purple-subtle text-pmfit-purple; }
+  .badge-teal   { @apply badge bg-pmfit-teal-subtle text-pmfit-teal; }
+  .badge-orange { @apply badge bg-pmfit-orange-subtle text-pmfit-orange; }
+  .badge-red    { @apply badge bg-pmfit-red-subtle text-pmfit-red; }
+  .badge-gray   { @apply badge bg-pmfit-bg text-pmfit-text-secondary; }
+
+  /* ── Shimmer skeleton ─────────────────────────── */
+  .skeleton {
+    @apply rounded-xl bg-gradient-to-r
+           from-pmfit-border via-pmfit-bg to-pmfit-border
+           bg-[length:300%_100%] animate-shimmer;
+  }
+
+  /* ── Gradient text ────────────────────────────── */
+  .gradient-text {
+    @apply bg-gradient-to-r from-pmfit-blue to-pmfit-blue-light
+           bg-clip-text text-transparent;
+  }
+
+  /* ── Animated gradient border ─────────────────── */
+  .gradient-border {
+    @apply relative before:absolute before:inset-0 before:rounded-2xl before:p-px
+           before:bg-gradient-to-r before:from-pmfit-blue before:via-pmfit-purple before:to-pmfit-teal
+           before:bg-[length:300%_100%] before:animate-gradient-x before:opacity-70
+           before:-z-10;
   }
 }
+
+/* ── Custom scrollbar ─────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }

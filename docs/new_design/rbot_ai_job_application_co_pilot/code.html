@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RBot | AI Co-Pilot for the PM Job Hunt</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&amp;family=Geist:wght@500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .vibrant-gradient {
+            background: linear-gradient(135deg, #0040e0 0%, #6b38d4 100%);
+        }
+        .fit-score-pulse {
+            animation: pulse-aura 3s infinite ease-in-out;
+        }
+        @keyframes pulse-aura {
+            0%, 100% { box-shadow: 0 0 0 0px rgba(0, 64, 224, 0.2); }
+            50% { box-shadow: 0 0 0 20px rgba(0, 64, 224, 0); }
+        }
+        .float-animation {
+            animation: float 6s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        .bounce-entry {
+            transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .bounce-entry:hover {
+            transform: scale(1.05) translateY(-4px);
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#fbf8ff",
+                    "surface-bright": "#fbf8ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004e5c",
+                    "on-primary-fixed": "#001356",
+                    "on-surface": "#191b24",
+                    "outline-variant": "#c4c5d9",
+                    "background": "#fbf8ff",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#e2e1ef",
+                    "inverse-on-surface": "#f0effd",
+                    "secondary-fixed": "#e9ddff",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#d7f6ff",
+                    "on-surface-variant": "#434656",
+                    "secondary": "#6b38d4",
+                    "tertiary-fixed-dim": "#4cd7f6",
+                    "tertiary-container": "#00788c",
+                    "surface-container": "#ededfa",
+                    "on-secondary-fixed": "#23005c",
+                    "primary-fixed": "#dde1ff",
+                    "error-container": "#ffdad6",
+                    "on-primary-container": "#efefff",
+                    "primary-container": "#2e5bff",
+                    "inverse-surface": "#2e303a",
+                    "primary": "#0040e0",
+                    "surface-container-highest": "#e2e1ef",
+                    "surface-tint": "#124af0",
+                    "inverse-primary": "#b8c3ff",
+                    "surface-container-low": "#f3f2ff",
+                    "on-background": "#191b24",
+                    "on-secondary-container": "#fffbff",
+                    "on-error-container": "#93000a",
+                    "tertiary": "#005e6e",
+                    "primary-fixed-dim": "#b8c3ff",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "on-tertiary-fixed": "#001f26",
+                    "outline": "#747688",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed-variant": "#0035be",
+                    "secondary-container": "#8455ef",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "on-primary": "#ffffff",
+                    "surface-dim": "#d9d9e6",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#e7e7f4",
+                    "tertiary-fixed": "#acedff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base-unit": "8px",
+                    "section-gap": "48px",
+                    "gutter": "16px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "body-base": ["Inter"],
+                    "label-caps": ["Geist"],
+                    "headline-md": ["Inter"],
+                    "display-lg-mobile": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "mono-technical": ["Geist"]
+            },
+            "fontSize": {
+                    "body-base": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display-lg-mobile": ["36px", {"lineHeight": "42px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "mono-technical": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-base selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter py-4 max-w-full bg-surface/80 backdrop-blur-xl border-b border-white/20 shadow-[0_10px_30px_-15px_rgba(0,64,224,0.15)]">
+<div class="flex items-center gap-8">
+<span class="font-display-lg-mobile text-display-lg-mobile font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">RBot</span>
+<nav class="hidden md:flex gap-6">
+<a class="font-label-caps text-label-caps text-primary font-bold border-b-2 border-primary pb-1" href="#">Job Discovery</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Resume Recovery</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Tracker</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Profile</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-surface-container-low rounded-lg transition-all duration-300 active:scale-90">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+<button class="p-2 hover:bg-surface-container-low rounded-lg transition-all duration-300 active:scale-90">
+<span class="material-symbols-outlined text-primary">bolt</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a smiling Product Manager in high-key lighting. The style is modern and high-fidelity, featuring a clean minimalist background with a subtle violet tint. The lighting is soft and flattering, emphasizing a trustworthy and successful tech professional aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBP5xommTd8ZNgAQ8IkNsat4MjP9oR15kNuo7zfyPX3rQ-AQmvVPG0KRAFKk5SKSQoZvl8sCH7L62s7diOqkQ8tongW68QwcPwLxZD_znZTQ1F5RU4BzTjGN-7agJQVzi1Uz8ae4hMgMWC1P257nlbQSdT7of2NlcjJ6NSKc4of2sQDB7JrkptZUZ0QyNYiWIok9h3Z_R5QA5n5Hcd6PRki7PNEntio2g7yy-VXELGgIKyz5AZzDMMieDGdB2BO-SINuhlekasWWZ9N"/>
+</div>
+</div>
+</header>
+<main class="pt-24 overflow-x-hidden">
+<!-- Hero Section -->
+<section class="relative min-h-[921px] flex items-center justify-center px-gutter overflow-hidden">
+<!-- Animated Background -->
+<div class="absolute inset-0 z-0">
+
+<div class="absolute inset-0 vibrant-gradient opacity-10"></div>
+</div>
+<div class="container mx-auto grid lg:grid-cols-2 gap-12 items-center relative z-10">
+<div class="space-y-8 max-w-2xl">
+<div class="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card border-primary/20">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-caps text-label-caps text-primary uppercase">v2.0 Performance Engine Live</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface leading-tight">
+                        Your AI Co-Pilot for the <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">PM Job Hunt.</span>
+</h1>
+<p class="font-body-base text-body-base text-on-surface-variant text-lg">
+                        Transform the tedious application process into a high-momentum career engine. Evidence-based matching meets automated workflow optimization.
+                    </p>
+<div class="flex flex-col sm:flex-row gap-4 pt-4">
+<button class="vibrant-gradient text-on-primary px-8 py-4 rounded-xl font-bold shadow-xl shadow-primary/25 hover:scale-105 active:scale-95 transition-transform duration-300 flex items-center justify-center gap-2">
+<span>Start Resume Recovery</span>
+<span class="material-symbols-outlined">rocket_launch</span>
+</button>
+<button class="glass-card text-primary border border-primary/30 px-8 py-4 rounded-xl font-bold hover:bg-primary-container/10 transition-colors flex items-center justify-center gap-2">
+<span>View Evidence Dashboard</span>
+<span class="material-symbols-outlined">monitoring</span>
+</button>
+</div>
+<div class="flex items-center gap-4 pt-8">
+<div class="flex -space-x-3">
+<div class="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a diverse tech professional. High-end SaaS photography style, soft ambient blue lighting, sharp focus on eyes, blurred tech-office background with purple accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbDKKIQvDChtNMrvloM3aTZteAm_WrC-oNRvAS2KO34WzAqW6YbjAU9Mt92QmnOxkQUpqBxd3rOPAIrDiLsowOQmwqfhrDN5uS1vPG2hYDBil0dCLoIeTWgBbSvdg5io2weiJkVy_vIcBHBRKW_SkRoZtP_2UIQ8Mry8Tv7eMn5LaGAVzcKwzl2yJLxUjUBSrsHgIskzXN4CBp2dM03rJ-Gox1s2Lwzr3W1ChnkMaKRsrD1hX-8f7m6NgqhPT43aNfre9KItVAVMCx"/>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Professional portrait of a successful female executive in a modern workspace. Vibrant electric blue color palette, soft-focus depth of field, high-fidelity digital art feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuASMGFSERM0uhxfLf6qeYrhPQj7d-bxTLKEPFkdmV4Us0CEERZdftbinjbVaEAKEXhifbzICGd1lm48MvDIt8CtMmwKgZ3bB2TMzASkmJXR3Vg--RzPC8IsaAOGpq_YDbPBzdViGLi828nheVlaSYKUlzd4tjGBUMHCQfL2Cs9_xMt-jwOrZP_MZ1vlxMElfWqlC9lztmI15kj_kT2tjvkEm98_ujra3zGK1bHeja0_1ZK_U5I6T-ZeJfnGWNuTALCRk8btUHzdTAXg"/>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Portrait of a young male entrepreneur with glasses. Clean studio lighting, electric violet color accents, modern minimalist tech aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXZuZftbamQ5Mhr7ZVMSA6pxVNcNoQaQwwl-kGJL9RJVzu-8d-8LrLhe1vs7LetIniXhNFkdT4P_B9Sobzua6USdrtV1Nrcf7KTHoRPsv2RwrK6LUoOW_TXNasvzIc9Zg4ZMsaDxDAE7Tg7wMUwb9XBzmjFwXicJFIqysTMu9DdIHwdOFEx6Ww78NVIfhN2DwqyS4kMMf9VUYyN8PTVhAgCCF0BgynQES22Dolu9M0D2Q1kpcGujjEtzjiHgQ03NUDFDuwnE8qiI4q"/>
+</div>
+</div>
+<p class="font-label-caps text-label-caps text-on-surface-variant">
+<span class="font-bold text-primary">500+ PMs</span> landed offers this month
+                        </p>
+</div>
+</div>
+<!-- Floating Visuals -->
+<div class="relative hidden lg:block h-[600px]">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full">
+
+</div>
+<!-- Floating Glass Card 1: Fit Score -->
+<div class="absolute top-10 right-10 glass-card p-6 rounded-2xl shadow-2xl float-animation" style="animation-delay: -1s">
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 rounded-full border-4 border-primary/20 flex items-center justify-center relative">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-primary-container" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary fit-score-pulse" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-dasharray="175" stroke-dashoffset="35" stroke-width="4"></circle>
+</svg>
+<span class="absolute font-bold text-primary">94%</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface">PM Lead Match</h4>
+<p class="text-xs text-on-surface-variant">At Google Cloud</p>
+</div>
+</div>
+</div>
+<!-- Floating Glass Card 2: Resume Engine -->
+<div class="absolute bottom-10 left-10 glass-card p-6 rounded-2xl shadow-2xl float-animation" style="animation-delay: -3s">
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">history_edu</span>
+<span class="font-label-caps text-secondary font-bold">Resume Recovery Engine</span>
+</div>
+<div class="space-y-2">
+<div class="h-2 w-48 bg-secondary/10 rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-4/5"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant italic">Injecting performance data...</p>
+</div>
+</div>
+</div>
+<!-- Floating Badge -->
+<div class="absolute top-1/2 left-0 glass-card px-4 py-2 rounded-full shadow-lg flex items-center gap-2 float-animation" style="animation-delay: -5s">
+<span class="material-symbols-outlined text-emerald-600" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="font-label-caps text-on-surface font-semibold text-[10px]">Product Manager Approved</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Social Proof: Trust Badges -->
+<section class="py-12 border-y border-outline-variant/20 bg-surface-container-lowest">
+<div class="container mx-auto px-gutter overflow-hidden">
+<div class="flex flex-wrap justify-center items-center gap-12 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+<img class="h-8" data-alt="High-contrast minimalist vector logo of a top-tier tech company. Clean lines, geometric shapes, monochromatic white or black in a light-mode aesthetic, representing corporate excellence and reliability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3Yicqp9oYFeI8CbX-3r2I-s2CHWwP7jFLvfO0B6EDjZQ8vjp1LEZQbgv_xkHqht1pvEYgdAZ5-2X_M74YzocxKkrh9f4s9vTdgsVwL7tyepoqjp0yrkf5OdIDC_eVy2uv2gk2JG3DxOcGloHx1EvGfs0R_sE3U7zKrocfDwo2MdBhbCQ21hRBMxIDoY-ujq-lSg3qUbO1uQlxWrHa0vHicVCppfjVZ9MoDju0H__C1NavSmBlDoJCPM8h2A_Hc1nCwfi4Zj1JOKUg"/>
+<img class="h-8" data-alt="Stylized corporate logo of a global software giant. Modern typography, professional tech aesthetic, minimalist presentation on a clean surface background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkvFENEUTqJfEeMsaMAZ8RrAdG9z-4XygUenC5KMEbpH5CgAmiQLBrga_UUBDTG24C7IjEzhmQ_Rz9-fPVGxq4YmgfGjWzwdV1H5Qi024ot6jNP2ZzO-cFLT0V2nuup5tnRkfu4NVHHiLAgXZlWlroXQ1TNhkIh9aprD2yOukA92WQhePr-XV5RBREFUS2c1rmx516DkZD9R8i0iqjCLpIS5DOlQisNjcKwrwW26zTg1yRLuid3Gfc5BF0de70SxCtcGM2KClNj009"/>
+<img class="h-8" data-alt="Sleek, modern logo of a famous cloud infrastructure provider. Geometric icon, bold minimalist font, high-fidelity vector style consistent with premium SaaS platforms." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjeaEdxLxe_n0ce5pAPl0xDYvjrrvUZ2KlhwshgxuvEYC1_Qt_SVzG4rT3kFQKRuSIIylykPU2oNZZb_ZZ2Bz-yvG_eAT4B8kS2GRV49h1iN_JvxHqz_w4lt_GPhCB1Sp8DhtySaV0jKiiijGQTYWTjKgEiFEz9nPWuI7_XoyO4nt0d0bEaCHcne7w_x5NvOE5SQK3ceyKwBnB1Bn8nB_2lHqKx5WGED-lxsB7t5e_y2-cyqE-quIbHhMCMyzY4G7874bhNIax2XOg"/>
+<img class="h-8" data-alt="Contemporary logo of a leading social media tech firm. Minimalist design, clean vector finish, representing high-momentum innovation and global scale." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1wn3F5Hhfc70ExXrz84houex6cvqXdbJcBdA24he43WAO1Zwo-5FAwHLeY1VdqfJUOkT2YY9vBACsimJpUoq2cB9uiHU58vTJ76XN9Aip3OtIukaE40FhUBwElwk-tGCmVd2xrzDJSnxtRrCjsd4AKT84vVSI2CXtqpTfEKZpscVE5pdpS-iwgb7PmYDRshfc4kkchuxLa9YQxphHO5xyBMI6qmCnu-hR0mJq9SfYbCcM2goEeDw2k-xuAlaWUYSQgupm9vqDbKwB"/>
+</div>
+</div>
+</section>
+<!-- Features Bento Grid -->
+<section class="py-section-gap px-gutter container mx-auto">
+<div class="text-center max-w-3xl mx-auto mb-16 space-y-4">
+<h2 class="font-display-lg-mobile text-display-lg-mobile md:text-headline-md font-extrabold text-on-surface">The High-Performance Career Stack</h2>
+<p class="font-body-base text-on-surface-variant">Beyond job boards. RBot uses deep learning to reconstruct your career narrative for maximum impact.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6 h-auto md:h-[800px]">
+<!-- Feature 1: Evidence Matching -->
+<div class="md:col-span-8 glass-card p-8 rounded-3xl relative overflow-hidden group bounce-entry shadow-xl">
+<div class="relative z-10 space-y-4 max-w-md">
+<div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl">query_stats</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Evidence-Based Matching</h3>
+<p class="font-body-base text-on-surface-variant">We don't just search for keywords. Our engine analyzes thousands of successful PM offers to find the exact "evidence" your target hiring manager is looking for.</p>
+<ul class="space-y-2 pt-4">
+<li class="flex items-center gap-3 text-on-surface text-sm">
+<span class="material-symbols-outlined text-primary text-sm">check_circle</span>
+                                Semantic gap analysis
+                            </li>
+<li class="flex items-center gap-3 text-on-surface text-sm">
+<span class="material-symbols-outlined text-primary text-sm">check_circle</span>
+                                Leadership signal mapping
+                            </li>
+</ul>
+</div>
+<div class="absolute right-0 bottom-0 w-2/3 h-full pointer-events-none opacity-20 group-hover:opacity-100 transition-opacity duration-700">
+
+</div>
+</div>
+<!-- Feature 2: Fit Scoring -->
+<div class="md:col-span-4 bg-primary-container p-8 rounded-3xl text-on-primary-container flex flex-col justify-between bounce-entry shadow-xl shadow-primary/10">
+<div>
+<div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-white text-3xl">analytics</span>
+</div>
+<h3 class="font-headline-md text-headline-md">Real-time Fit Scoring</h3>
+<p class="font-body-base opacity-80 mt-4">Instantly see your probability of getting an interview for any role based on current market data.</p>
+</div>
+<div class="mt-8 p-4 bg-white/10 rounded-2xl border border-white/20">
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<span class="text-xs uppercase font-bold opacity-60">Success Probability</span>
+<div class="text-3xl font-black">89%</div>
+</div>
+<div class="flex gap-1 items-end h-16">
+<div class="w-4 bg-white/40 h-1/2 rounded-t-sm"></div>
+<div class="w-4 bg-white/60 h-3/4 rounded-t-sm"></div>
+<div class="w-4 bg-white h-full rounded-t-sm"></div>
+<div class="w-4 bg-white/30 h-2/3 rounded-t-sm"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Feature 3: Resume Recovery -->
+<div class="md:col-span-5 bg-surface-container-high p-8 rounded-3xl bounce-entry shadow-md border border-outline-variant/30">
+<div class="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-secondary text-3xl">healing</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Resume Recovery Engine</h3>
+<p class="font-body-base text-on-surface-variant mt-4">Static resumes are dead. Our engine 'heals' your past experiences by injecting quantifiable metrics and PM-specific verbiage that bypasses ATS filters automatically.</p>
+</div>
+<!-- Feature 4: Auto-Apply -->
+<div class="md:col-span-7 glass-card p-8 rounded-3xl relative overflow-hidden flex flex-col md:flex-row items-center gap-8 bounce-entry shadow-xl">
+<div class="flex-1 space-y-4">
+<h3 class="font-headline-md text-headline-md text-on-surface">Zero-Click Workflows</h3>
+<p class="font-body-base text-on-surface-variant">Define your parameters, and let RBot handle the rest. Tailored cover letters, application forms, and follow-up emails—all handled by your co-pilot.</p>
+<button class="text-primary font-bold flex items-center gap-2 hover:gap-4 transition-all">
+                            Learn about automation <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+<div class="w-full md:w-64 h-48 bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner">
+<div class="w-full h-full bg-cover bg-center" data-alt="A clean UI mockup of an automated workflow dashboard. Featuring sleek progress bars, circular notification badges, and a minimalist timeline of application events. The color scheme is dominated by cool blues and purples in a professional light-mode setting." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA0lCRSG3mk-vRL0SJfaZ9hrxYiEzzKWyjW8DWQ-Lgi-P1GIxD8MW-GPnqwRTKOzfOaFJEu1SSX511RbGwkl4_hIznFSStXDa7R_FExxeFeQHuAgnBN95kONmHweTNwXYgbV4ZweU1s8PS0upGPPgpZl5h5VSPioURHrUW0_k63N8Lo3GJgUE_MG2pHQyhRXHYmxzId1NO2xoPCffDWCl1B_VtM_2oGYn9Jh2kLHy2QpLUkkGBRrkx6g1ovQEXlM1hpTOGpXQkVsV2A')"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Testimonial Section -->
+<section class="py-section-gap px-gutter bg-surface-container-low">
+<div class="container mx-auto grid md:grid-cols-2 gap-16 items-center">
+<div class="space-y-6">
+<div class="text-secondary font-black text-6xl opacity-20">“</div>
+<h2 class="font-headline-md text-headline-md italic text-on-surface">
+                        "RBot didn't just find me jobs; it taught me how to present my experience as a PM Lead. The 'Evidence Matching' is like having a career coach available 24/7. I landed a role at Stripe in 3 weeks."
+                    </h2>
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A sophisticated headshot of a modern Product Lead. Bright eyes, warm lighting, soft-focus tech-hub background, captured with premium camera equipment. Style is high-end editorial for a tech publication." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAaMGbgcRcHQ5yIxxiBqukyYsOE8rFreYKRaa1rtNZPfLjxa_qiprOrF1y6IpvakF0K3doLgtH9nLLdwfyZ3XFBAD4dT_YXmFSprKjFc7EN1zydSUgwFM5AG56RYL_mCYxUw7rldihClZCYVZ0Zkuc3eHyIVw0iWu2xmK1AoQEJji_eOp5Ilb7IQ_HxnQ2AUMwRvzktYHqCY6HN5_UszAZM0BYyOk1rZbVkAqVf6Z0BuMVobp8S7f06tKfP6DBUrOrgGLJHV4o9X4Ik"/>
+</div>
+<div>
+<div class="font-bold text-on-surface">Sarah Chen</div>
+<div class="text-xs text-on-surface-variant">Product Lead @ Stripe</div>
+</div>
+</div>
+</div>
+<div class="relative">
+<div class="aspect-square bg-gradient-to-tr from-primary/20 to-secondary/20 rounded-full blur-3xl absolute inset-0"></div>
+<div class="relative z-10 glass-card p-4 rounded-3xl border-primary/20 shadow-2xl rotate-3">
+<img class="w-full rounded-2xl shadow-inner" data-alt="A high-resolution screenshot of a modern job application tracker dashboard. Features colorful status labels like 'Interview', 'Offer', and 'Applied', with elegant data visualization charts in the background. The aesthetic is clean, professional, and data-heavy yet readable." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmIW-fdmr7K3N4_Of7q8tJOywG_J4ieLrf7uvvNMPl_EO927QgDJbhsKv3pynQ4b5HpA7sLwB3bD-iKsPM3ZcUdHv7ifLkAmdZkccU7kUb6teYST_-rfm7mdCIZBXNzGUrMbIQaiiBNX-fKt7XZ6U-sGoHQLo5ZAjMfbR-5jrYSsIHeht5Nv_VmAGHGjxLhtUz-6NyRC1Vi7WXmZf5V-guWRzo2YmauUSieRa0qSE0cZCsKKmQ1hxdhp0SkD-5ybKVvqcH70q5d5hA"/>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-section-gap px-gutter">
+<div class="container mx-auto">
+<div class="vibrant-gradient p-12 md:p-24 rounded-[3rem] text-center text-on-primary relative overflow-hidden">
+
+<div class="relative z-10 max-w-3xl mx-auto space-y-8">
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg leading-tight">Ready to activate your Co-Pilot?</h2>
+<p class="text-xl opacity-90 font-body-base">Join the waitlist or start your Resume Recovery process immediately. Your next PM role is waiting.</p>
+<div class="flex flex-col sm:flex-row justify-center gap-4">
+<button class="bg-white text-primary px-10 py-5 rounded-2xl font-black text-lg hover:scale-110 active:scale-95 transition-all shadow-2xl">
+                                Start Resume Recovery
+                            </button>
+<button class="bg-primary-container/30 backdrop-blur-md text-white border border-white/30 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all">
+                                Talk to an Expert
+                            </button>
+</div>
+<p class="text-xs font-label-caps opacity-60">NO CREDIT CARD REQUIRED. 7-DAY FREE ACCESS TO RBOT PRO.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-base-unit px-gutter flex flex-col md:flex-row justify-between items-center gap-4 bg-surface-container-lowest border-t border-outline-variant/20 pt-12 pb-8">
+<div class="flex flex-col items-center md:items-start gap-4">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">RBot</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant max-w-xs text-center md:text-left">
+                © 2024 RBot AI. High-Performance Career Engine. Built for the modern Product Manager.
+            </p>
+</div>
+<nav class="flex flex-wrap justify-center gap-8">
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">API Docs</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Help Center</a>
+</nav>
+<div class="flex gap-4">
+<a class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">alternate_email</span>
+</a>
+<a class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">hub</span>
+</a>
+</div>
+</footer>
+<!-- FAB (Suppressed on Landing but here for structural reference if needed in future flows) -->
+<!-- Contextual FAB suppressed as per requirement for non-task-focused landing pages -->
+<script>
+        // Smooth hover micro-interactions for bento items
+        document.querySelectorAll('.bounce-entry').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.classList.add('shadow-2xl', 'shadow-primary/20');
+            });
+            card.addEventListener('mouseleave', () => {
+                card.classList.remove('shadow-2xl', 'shadow-primary/20');
+            });
+        });
+
+        // Simple parallax effect for floating glass cards
+        window.addEventListener('mousemove', (e) => {
+            const cards = document.querySelectorAll('.float-animation');
+            const x = (window.innerWidth / 2 - e.pageX) / 50;
+            const y = (window.innerHeight / 2 - e.pageY) / 50;
+            
+            cards.forEach(card => {
+                card.style.transform = `translate(${x}px, ${y}px)`;
+            });
+        });
+    </script>
+</body></html>

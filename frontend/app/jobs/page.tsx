@@ -1,15 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import FitScoreBadge from "@/components/shared/FitScoreBadge";
-import Link from "next/link";
+import { motion } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
+import { AppShell } from "@/components/layout/AppShell";
+import { JobCard } from "@/components/jobs/JobCard";
+import { SkeletonJobGrid } from "@/components/ui/Skeleton";
+import { SlidersHorizontal, Search } from "lucide-react";
 
 interface ScoredJob {
-  fit_score:            number;
-  evidence_confidence:  string;
+  fit_score:              number;
+  evidence_confidence:    string;
   automation_eligibility: string;
-  fit_explanation:      string;
-  ineligibility_reason: string | null;
+  fit_explanation:        string | null;
+  ineligibility_reason:   string | null;
+  score_breakdown:        { components?: Record<string, { score: number }> } | null;
   jobs: {
     id:              string;
     title:           string;
@@ -22,140 +27,117 @@ interface ScoredJob {
   };
 }
 
+const containerV = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
+const cardV      = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
+
 export default function JobsPage() {
   const [jobs,    setJobs]    = useState<ScoredJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [minFit,  setMinFit]  = useState(0);
+  const [query,   setQuery]   = useState("");
+
+  const supabase = createClient();
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const token = await _getToken();
-      const resp  = await fetch(
+      const token = (await supabase.auth.getSession()).data.session?.access_token ?? "";
+      const res   = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/jobs/?min_fit=${minFit}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const data = await resp.json();
+      const data  = await res.json();
       setJobs(data.data || []);
       setLoading(false);
     })();
-  }, [minFit]);
+  }, [minFit]); // eslint-disable-line
 
   const requestTailoring = async (jobId: string) => {
-    const token = await _getToken();
+    const token = (await supabase.auth.getSession()).data.session?.access_token ?? "";
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/${jobId}/tailor`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
-    alert("Tailoring queued. Check your profile for artifacts when ready.");
   };
 
-  return (
-    <div className="min-h-screen bg-apple-surface">
-      <nav className="bg-white border-b border-apple-border px-6 h-14 flex items-center gap-6">
-        <Link href="/dashboard" className="text-[17px] font-semibold text-apple-text">RBot</Link>
-        <Link href="/jobs"    className="text-[15px] font-medium text-apple-accent">Jobs</Link>
-        <Link href="/tracker" className="text-[15px] text-apple-text-secondary hover:text-apple-text">Tracker</Link>
-        <Link href="/profile" className="text-[15px] text-apple-text-secondary hover:text-apple-text">Profile</Link>
-      </nav>
+  const filtered = jobs.filter((j) =>
+    !query ||
+    j.jobs.title.toLowerCase().includes(query.toLowerCase()) ||
+    j.jobs.company.toLowerCase().includes(query.toLowerCase())
+  );
 
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[28px] font-bold text-apple-text">Matched Roles</h1>
-          <div className="flex items-center gap-3">
-            <label className="text-[14px] text-apple-text-secondary">Min Fit Score:</label>
+  return (
+    <AppShell title="Job Discovery">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-[26px] font-bold text-pmfit-text">PM Opportunities</h1>
+          <p className="text-[14px] text-pmfit-text-secondary mt-0.5">
+            {loading ? "Loading…" : `${filtered.length} roles scored for you`}
+          </p>
+        </div>
+
+        <div className="sm:ml-auto flex items-center gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-pmfit-text-muted" />
+            <input
+              type="text"
+              placeholder="Search roles or companies…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="input h-9 pl-9 w-56 text-[14px]"
+            />
+          </div>
+          {/* Min fit filter */}
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={15} className="text-pmfit-text-muted" />
             <select
-              className="input w-24 h-9 text-[14px]"
+              className="input h-9 w-28 text-[13px]"
               value={minFit}
               onChange={(e) => setMinFit(Number(e.target.value))}
             >
               {[0, 40, 55, 70, 80].map((v) => (
-                <option key={v} value={v}>{v}+</option>
+                <option key={v} value={v}>Fit ≥ {v}</option>
               ))}
             </select>
           </div>
         </div>
+      </div>
 
-        {loading && (
-          <div className="text-center py-20">
-            <div className="w-8 h-8 border-2 border-apple-accent border-t-transparent rounded-full animate-spin mx-auto" />
-          </div>
-        )}
-
-        {!loading && jobs.length === 0 && (
-          <div className="card p-12 text-center">
-            <p className="text-[17px] text-apple-text-secondary">
-              No scored jobs yet. Discovery runs every 4 hours.
-            </p>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {jobs.map((item) => (
-            <div key={item.jobs.id} className="card p-5 flex items-start gap-5">
-              <div className="shrink-0 pt-1">
-                <FitScoreBadge score={item.fit_score} size="lg" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[17px] font-semibold text-apple-text">{item.jobs.title}</p>
-                    <p className="text-[14px] text-apple-text-secondary">{item.jobs.company}</p>
-                    <p className="text-[13px] text-apple-text-tertiary mt-0.5">
-                      {item.jobs.location}
-                      {item.jobs.remote_eligible && " · Remote OK"}
-                      {" · "}
-                      {item.jobs.ats_family}
-                    </p>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2">
-                    <span
-                      className={`text-[12px] px-2 py-1 rounded-lg font-medium border ${
-                        item.automation_eligibility === "eligible"
-                          ? "text-apple-success bg-apple-success-subtle border-apple-success/20"
-                          : item.automation_eligibility === "restricted"
-                          ? "text-apple-warning bg-apple-warning-subtle border-apple-warning/20"
-                          : "text-apple-text-secondary bg-apple-surface border-apple-border"
-                      }`}
-                    >
-                      {item.automation_eligibility.replace(/_/g, " ")}
-                    </span>
-                    <span
-                      className={`text-[12px] px-2 py-1 rounded-lg font-medium border ${
-                        item.evidence_confidence === "high"
-                          ? "text-apple-success bg-apple-success-subtle border-apple-success/20"
-                          : item.evidence_confidence === "medium"
-                          ? "text-apple-warning bg-apple-warning-subtle border-apple-warning/20"
-                          : "text-apple-text-secondary bg-apple-surface border-apple-border"
-                      }`}
-                    >
-                      {item.evidence_confidence} confidence
-                    </span>
-                  </div>
-                </div>
-                {item.fit_explanation && (
-                  <p className="text-[13px] text-apple-text-secondary mt-2 line-clamp-2">
-                    {item.fit_explanation}
-                  </p>
-                )}
-                <div className="flex gap-3 mt-3">
-                  <button
-                    onClick={() => requestTailoring(item.jobs.id)}
-                    className="btn-primary text-[13px] h-8 px-3"
-                  >
-                    Generate Tailored Resume
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* Content */}
+      {loading ? (
+        <SkeletonJobGrid />
+      ) : filtered.length === 0 ? (
+        <div className="card p-16 text-center">
+          <p className="text-[17px] font-semibold text-pmfit-text mb-2">No matching roles found</p>
+          <p className="text-[14px] text-pmfit-text-secondary">
+            Try lowering the minimum fit score or check back in a few hours — discovery runs every 4 hrs.
+          </p>
         </div>
-      </main>
-    </div>
+      ) : (
+        <motion.div
+          variants={containerV}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 xl:grid-cols-2 gap-4"
+        >
+          {filtered.map((item) => (
+            <motion.div key={item.jobs.id} variants={cardV}>
+              <JobCard
+                fitScore={item.fit_score}
+                evidenceConfidence={item.evidence_confidence}
+                automationEligibility={item.automation_eligibility}
+                fitExplanation={item.fit_explanation}
+                ineligibilityReason={item.ineligibility_reason}
+                scoreBreakdown={item.score_breakdown ?? undefined}
+                job={item.jobs}
+                onTailor={requestTailoring}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+    </AppShell>
   );
-}
-
-async function _getToken() {
-  const { createClient } = await import("@/lib/supabase/client");
-  return (await createClient().auth.getSession()).data.session?.access_token ?? "";
 }

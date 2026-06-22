@@ -5,6 +5,7 @@ import ResumeUploadStep from "./steps/ResumeUploadStep";
 import LinkedInStep    from "./steps/LinkedInStep";
 import GitHubStep      from "./steps/GitHubStep";
 import RecoveryStep    from "./steps/RecoveryStep";
+import { Logo } from "@/components/ui/Logo";
 
 type Step = "resume" | "linkedin" | "github" | "recovery";
 
@@ -39,12 +40,14 @@ export default function OnboardingFlow({ user, recoveryStatus }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-apple-surface flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-pmfit-bg flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-[600px]">
         {/* Header */}
         <div className="text-center mb-10">
-          <p className="text-[22px] font-bold text-apple-text mb-1">RBot</p>
-          <p className="text-[15px] text-apple-text-secondary">
+          <div className="flex justify-center mb-3">
+            <Logo variant="top" />
+          </div>
+          <p className="text-[15px] text-pmfit-text-secondary">
             {user.name ? `Let's set up your profile, ${user.name.split(" ")[0]}.` : "Let's set up your profile."}
           </p>
         </div>
@@ -60,23 +63,23 @@ export default function OnboardingFlow({ user, recoveryStatus }: Props) {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-semibold transition-colors ${
                     isDone
-                      ? "bg-apple-success text-white"
+                      ? "bg-pmfit-teal text-white"
                       : isCurrent
-                      ? "bg-apple-accent text-white"
-                      : "bg-apple-border text-apple-text-tertiary"
+                      ? "bg-pmfit-blue text-white"
+                      : "bg-pmfit-border text-pmfit-text-muted"
                   }`}
                 >
                   {isDone ? "✓" : i + 1}
                 </div>
                 <span
                   className={`text-[13px] font-medium hidden sm:block ${
-                    isCurrent ? "text-apple-text" : "text-apple-text-tertiary"
+                    isCurrent ? "text-pmfit-text" : "text-pmfit-text-muted"
                   }`}
                 >
                   {STEP_LABELS[step]}
                 </span>
                 {i < STEPS.length - 1 && (
-                  <div className={`w-8 h-[2px] ${isDone ? "bg-apple-success" : "bg-apple-border"}`} />
+                  <div className={`w-8 h-[2px] ${isDone ? "bg-pmfit-teal" : "bg-pmfit-border"}`} />
                 )}
               </div>
             );

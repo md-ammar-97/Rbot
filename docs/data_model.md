@@ -1,7 +1,7 @@
-# RBot — Data Model
+# PMFit — Data Model
 
-**Version:** 1.0  
-**Date:** 2026-06-20  
+**Version:** 1.1  
+**Date:** 2026-06-21  
 **Database:** Supabase (PostgreSQL 15)  
 
 ---

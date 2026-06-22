@@ -1,14 +1,14 @@
-# RBot — Architecture Document
+# PMFit — Architecture Document
 
-**Version:** 1.0  
-**Date:** 2026-06-20  
-**Status:** Draft — Pre-implementation  
+**Version:** 1.1  
+**Date:** 2026-06-21  
+**Status:** Implementation in progress  
 
 ---
 
 ## 1. System Overview
 
-RBot is a quality-first AI co-pilot for PM job seekers. Architecturally it is a **Python FastAPI backend** with a **React frontend**, backed by **Supabase** (PostgreSQL + Auth + Storage), using **Groq** for all LLM inference, and **Playwright** for browser-assisted application flows.
+PMFit is a quality-first AI co-pilot for PM job seekers. Architecturally it is a **Python FastAPI backend** with a **React frontend**, backed by **Supabase** (PostgreSQL + Auth + Storage), using **Groq** for all LLM inference, and **Playwright** for browser-assisted application flows.
 
 The system is divided into discrete service modules that are called sequentially through a strict **Policy Engine** before any external action fires.
 
@@ -68,13 +68,13 @@ The system is divided into discrete service modules that are called sequentially
 | Layer | Technology | Rationale |
 |---|---|---|
 | Frontend | React 18 + Next.js 14 (App Router) | Complex multi-step UI (Kanban, multi-file upload, review flows) needs a full React framework |
-| Design system | Apple HIG (web) · Tailwind CSS + shadcn/ui | Apple color tokens, system-ui font, `#0071E3` accent — see `docs/design.md` |
+| Design system | PMFit Design System · Tailwind CSS · Framer Motion · Recharts | Inter font, `#0052CC` primary blue, dark navy sidebar, animated throughout — see `docs/design.md` |
 | Backend | FastAPI (Python 3.11+) | Async-native, fast, type-safe via Pydantic; consistent with other user projects |
 | LLM Inference | Groq — `llama-3.3-70b-versatile` (primary), `llama-3.1-8b-instant` (fast/cheap) | Consistent LLM choice across all user projects; low latency |
 | Database | Supabase (PostgreSQL 15) | Structured relational data, Row Level Security, built-in Auth, S3-compatible Storage |
-| Auth | Supabase Auth — **Google OAuth only** (Phase 1) | `signInWithOAuth({ provider: 'google' })`; scopes: `openid email profile`; data isolation via RLS on every table |
+| Auth | Supabase Auth — Google OAuth + Email OTP | Google `signInWithOAuth`; or email → 8-digit OTP via Resend + secret code gate; RLS on every table |
 | File Storage | Supabase Storage | Resume uploads, LinkedIn export archives, generated resume artifacts |
-| Background Jobs | Celery + Redis | Async tasks: resume parsing, job discovery polling, GitHub ingestion, LLM drafting |
+| Background Jobs | In-process threading (Python `threading`) | Async tasks: resume parsing, job discovery polling, GitHub ingestion, LLM drafting — free-tier compatible, no Redis required |
 | Browser Automation | Playwright (Python) | Assisted apply prefill, DOM snapshot for schema detection |
 | Orchestration | n8n (self-hosted) | Scheduled discovery runs, enrichment pipelines, email polling (Phase 2) |
 | Scraping (permitted) | Apify | Approved non-API job sources only; not a general scraping license |
@@ -631,7 +631,9 @@ GROQ_FAST_MODEL=llama-3.1-8b-instant
 
 ---
 
-## 8. Background Jobs (Celery + Redis)
+## 8. Background Jobs (In-process threading)
+
+Tasks run via Python `threading.Thread` spawned from FastAPI route handlers — no external broker required (free-tier compatible on Render's starter plan).
 
 | Job name | Trigger | Description |
 |---|---|---|
@@ -646,8 +648,6 @@ GROQ_FAST_MODEL=llama-3.1-8b-instant
 | `score_jobs` | New canonical jobs | Score all new jobs against user profiles |
 | `generate_draft` | User requests | Generate tailored resume / cover letter |
 | `stale_job_sweep` | n8n cron (daily) | Flag tracker items with no event in 30+ days |
-
-**Redis** used for: Celery broker + result backend; rate-limit counters for LLM calls and ATS API calls.
 
 ---
 
@@ -706,15 +706,19 @@ Scraping: BLOCKED at architecture level
 
 ---
 
-## 11. Project Structure (Planned)
+## 11. Project Structure
 
 ```
-RBot/
-├── context.md
+PMFit/
 ├── docs/
 │   ├── PRD.md
 │   ├── architecture.md      ← this file
-│   └── deep-research-report (2).md
+│   ├── data_model.md
+│   ├── design.md
+│   ├── edge_cases.md
+│   ├── ai_evals.md
+│   ├── implementation.md
+│   └── DEPLOYMENT.md
 │
 ├── backend/
 │   ├── app/
@@ -741,9 +745,9 @@ RBot/
 │   │   │   ├── policy_engine.py
 │   │   │   ├── execution.py
 │   │   │   └── tracker.py
-│   │   ├── workers/             Celery tasks
+│   │   ├── workers/             In-process background task runner
 │   │   │   └── tasks.py
-│   │   ├── models/              Pydantic schemas + SQLAlchemy models
+│   │   ├── models/              Pydantic schemas
 │   │   │   ├── profile.py
 │   │   │   ├── job.py
 │   │   │   ├── artifact.py
@@ -762,40 +766,31 @@ RBot/
 │   └── requirements.txt
 │
 ├── frontend/
-│   ├── app/                     Next.js App Router pages
-│   │   ├── (public)/            Unauthenticated routes
-│   │   │   ├── page.tsx         Homepage (/)
-│   │   │   └── login/page.tsx   Login page (/login)
-│   │   ├── auth/
-│   │   │   └── callback/route.ts  Supabase Google OAuth callback
-│   │   └── (auth)/              Auth-gated routes (middleware redirects to /login)
-│   │       ├── layout.tsx       Auth guard wrapper
-│   │       ├── dashboard/page.tsx
-│   │       ├── onboarding/page.tsx
-│   │       ├── profile/page.tsx
-│   │       ├── jobs/
-│   │       │   ├── page.tsx
-│   │       │   └── [id]/page.tsx
-│   │       ├── apply/[id]/page.tsx
-│   │       ├── tracker/page.tsx
-│   │       ├── artifacts/page.tsx
-│   │       └── settings/page.tsx
+│   ├── app/                     Next.js 14 App Router pages
+│   │   ├── page.tsx             Landing page (Framer Motion animated)
+│   │   ├── login/page.tsx       Auth — Google OAuth + Email OTP (8-box animated input)
+│   │   ├── gate/page.tsx        Private beta access code gate
+│   │   ├── dashboard/page.tsx   Overview — profile completeness, active apps
+│   │   ├── jobs/page.tsx        Job discovery — FitGauge + JobCard grid
+│   │   ├── tracker/page.tsx     Kanban board — drag-and-drop status updates
+│   │   ├── profile/page.tsx     Recovery dashboard — DiagnosisChart + evidence gaps
+│   │   ├── onboarding/page.tsx  4-step onboarding flow (skippable)
+│   │   └── api/auth/            Email OTP send + verify route handlers
 │   ├── components/
-│   │   ├── home/                Homepage sections (HeroSection, FeaturesGrid, HowItWorks, CTABanner)
-│   │   ├── auth/                LoginCard, GoogleButton
-│   │   ├── layout/              Navbar, Sidebar, Footer
-│   │   ├── profile/
-│   │   ├── recovery/
-│   │   ├── jobs/                JobCard, FitScoreBadge, EvidenceTag
-│   │   ├── apply/
-│   │   ├── tracker/             KanbanBoard, KanbanColumn, KanbanCard
-│   │   └── shared/              SkeletonCard, ProgressStepper
+│   │   ├── auth/                OTPInput (8-box animated digit input)
+│   │   ├── home/                HeroSection, FeaturesGrid, StatsBar, DarkFeatureSection, CTABanner
+│   │   ├── jobs/                FitGauge (recharts RadialBar), JobCard (expandable breakdown)
+│   │   ├── layout/              Sidebar (dark navy, Framer Motion hover), AppShell
+│   │   ├── recovery/            DiagnosisChart (PieChart donut), DimensionBars, EvidenceGapCard
+│   │   ├── tracker/             KanbanBoard (drag-and-drop), KanbanCard
+│   │   └── ui/                  GlowCard, AnimatedCounter, CircularProgress, Skeleton, Logo
+│   ├── public/                  logo-icon.png, logo-top.png, logo-black.png
 │   ├── lib/
 │   │   ├── supabase/
 │   │   │   ├── client.ts        Browser Supabase client
 │   │   │   └── server.ts        Server Supabase client (RSC)
 │   │   └── utils.ts
-│   ├── tailwind.config.js       Apple HIG color tokens + type scale
+│   ├── tailwind.config.js       PMFit design tokens (pmfit.* color scale, Inter font)
 │   └── package.json
 │
 └── n8n/

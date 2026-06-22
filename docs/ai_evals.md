@@ -1,9 +1,9 @@
-# RBot — AI Evaluation Framework
+# PMFit — AI Evaluation Framework
 
-**Version:** 1.0  
-**Date:** 2026-06-20  
+**Version:** 1.1  
+**Date:** 2026-06-21  
 
-This document defines how every LLM task in RBot is evaluated for correctness, safety, and quality. It covers automated metrics, human rubrics, test case banks, and red-line conditions that constitute an automatic fail regardless of other scores.
+This document defines how every LLM task in PMFit is evaluated for correctness, safety, and quality. It covers automated metrics, human rubrics, test case banks, and red-line conditions that constitute an automatic fail regardless of other scores.
 
 ---
 

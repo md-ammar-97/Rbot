@@ -1,26 +1,40 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import KanbanBoard from "@/components/tracker/KanbanBoard";
+import { AppShell } from "@/components/layout/AppShell";
+import { KanbanBoard } from "@/components/tracker/KanbanBoard";
 
 export default async function TrackerPage() {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, avatar_url")
+    .eq("id", user.id)
+    .single();
+
+  // Count active apps for the header badge
+  const { count: activeCount } = await supabase
+    .from("tracker_items")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .not("current_status", "in", "(closed_accepted,closed_rejected,closed_withdrawn)");
+
   return (
-    <div className="min-h-screen bg-apple-surface">
-      <nav className="bg-white border-b border-apple-border px-6 h-14 flex items-center gap-6">
-        <a href="/dashboard" className="text-[17px] font-semibold text-apple-text">RBot</a>
-        <a href="/jobs"    className="text-[15px] text-apple-text-secondary hover:text-apple-text">Jobs</a>
-        <a href="/tracker" className="text-[15px] font-medium text-apple-accent">Tracker</a>
-        <a href="/profile" className="text-[15px] text-apple-text-secondary hover:text-apple-text">Profile</a>
-      </nav>
-      <main className="px-6 py-10">
-        <h1 className="text-[28px] font-bold text-apple-text mb-8">Application Tracker</h1>
-        <KanbanBoard userId={user.id} />
-      </main>
-    </div>
+    <AppShell title="Application Tracker" avatarUrl={profile?.avatar_url} userName={profile?.full_name}>
+      <div className="mb-6 flex items-center gap-3">
+        <div>
+          <h1 className="text-[26px] font-bold text-pmfit-text">Job Tracker</h1>
+          <p className="text-[14px] text-pmfit-text-secondary mt-0.5">
+            {activeCount ?? 0} active applications · drag cards to update status
+          </p>
+        </div>
+        <span className="ml-auto badge-blue text-[12px]">
+          {activeCount ?? 0} Active
+        </span>
+      </div>
+      <KanbanBoard userId={user.id} />
+    </AppShell>
   );
 }

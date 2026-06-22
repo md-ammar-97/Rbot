@@ -1,7 +1,7 @@
-# RBot — Implementation Guide
+# PMFit — Implementation Guide
 
-**Version:** 1.0  
-**Date:** 2026-06-20  
+**Version:** 1.1  
+**Date:** 2026-06-21  
 **Build order:** 14 sequential steps across 9 sprints  
 **Reference docs:** `architecture.md` (services) · `data_model.md` (schema) · `design.md` (UI) · `edge_cases.md` (failure handling) · `ai_evals.md` (LLM testing)
 

@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/ui/Logo";
 
 const SECRET_CODE = "AMMAR8800206651";
 
@@ -41,22 +43,28 @@ export default function GatePage() {
   };
 
   return (
-    <main className="min-h-screen bg-apple-surface flex items-center justify-center px-6">
-      <div className="w-full max-w-[400px]">
-
+    <main className="min-h-screen bg-pmfit-bg flex items-center justify-center px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-[400px]"
+      >
         <div className="text-center mb-8">
-          <p className="text-[22px] font-bold text-apple-text">RBot</p>
-          <p className="mt-2 text-[15px] text-apple-text-secondary">
+          <div className="flex justify-center mb-3">
+            <Logo variant="top" />
+          </div>
+          <p className="text-[14px] text-pmfit-text-secondary">
             AI Job Co-Pilot for Product Managers
           </p>
         </div>
 
         <div className="card p-8">
-          <h1 className="text-[22px] font-semibold text-apple-text text-center mb-2">
+          <h1 className="text-[22px] font-semibold text-pmfit-text text-center mb-2">
             Enter access code
           </h1>
-          <p className="text-[13px] text-apple-text-secondary text-center mb-6">
-            RBot is in private beta. Enter your access code to continue.
+          <p className="text-[13px] text-pmfit-text-secondary text-center mb-6">
+            PMFit is in private beta. Enter your access code to continue.
           </p>
 
           <form onSubmit={handleVerify} className="flex flex-col gap-3">
@@ -72,7 +80,13 @@ export default function GatePage() {
             />
 
             {error && (
-              <p className="text-[13px] text-red-500 text-center">{error}</p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-[13px] text-pmfit-red text-center"
+              >
+                {error}
+              </motion.p>
             )}
 
             <button
@@ -84,8 +98,7 @@ export default function GatePage() {
             </button>
           </form>
         </div>
-
-      </div>
+      </motion.div>
     </main>
   );
 }

@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       from:    process.env.OTP_FROM_EMAIL,
       to:      email,
-      subject: "Your RBot sign-in code",
+      subject: "Your PMFit sign-in code",
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
-          <h2 style="margin-bottom:8px;">Sign in to RBot</h2>
+          <h2 style="margin-bottom:8px;">Sign in to PMFit</h2>
           <p style="color:#555;margin-bottom:24px;">Enter this code on the sign-in page:</p>
           <div style="background:#f4f4f5;border-radius:8px;padding:20px 32px;text-align:center;
                       font-size:28px;font-weight:700;letter-spacing:0.15em;font-family:monospace;">
