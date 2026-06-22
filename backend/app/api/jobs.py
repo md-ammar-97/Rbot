@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.security import get_current_user
 from app.core.supabase import supabase_admin
 
 router = APIRouter()
+
+
+def _one(result):
+    return result.data[0] if result.data else None
 
 
 @router.get("/")
@@ -42,33 +46,36 @@ async def list_jobs(
 @router.get("/{job_id}")
 async def get_job(job_id: str, user=Depends(get_current_user)):
     """Get a single job with the user's score."""
-    job = supabase_admin.table("jobs").select("*").eq("id", job_id).maybe_single().execute()
-    if not job.data:
+    job = _one(supabase_admin.table("jobs").select("*").eq("id", job_id).limit(1).execute())
+    if not job:
         raise HTTPException(404, "Job not found.")
-    score = supabase_admin.table("job_scores").select("*") \
-            .eq("user_id", user.id).eq("job_id", job_id).maybe_single().execute()
-    return {"data": {"job": job.data, "score": score.data}}
+    score = _one(
+        supabase_admin.table("job_scores").select("*")
+        .eq("user_id", user.id).eq("job_id", job_id).limit(1).execute()
+    )
+    return {"data": {"job": job, "score": score}}
 
 
 @router.post("/{job_id}/tailor")
 async def request_tailoring(job_id: str, user=Depends(get_current_user)):
     """Queue tailored resume + cover letter generation for a specific job."""
-    # Check recovery complete
-    profile = supabase_admin.table("profiles").select("recovery_status") \
-              .eq("id", user.id).maybe_single().execute().data
+    profile = _one(
+        supabase_admin.table("profiles").select("recovery_status")
+        .eq("id", user.id).limit(1).execute()
+    )
     if not profile or profile.get("recovery_status") != "complete":
         return {"error": "Resume Quality Recovery must complete before tailoring."}
 
-    # Get baseline artifact
-    baseline = supabase_admin.table("artifacts").select("id") \
-               .eq("user_id", user.id).eq("type", "baseline_resume") \
-               .order("created_at", desc=True).limit(1).maybe_single().execute()
-
-    if not baseline.data:
+    baseline = _one(
+        supabase_admin.table("artifacts").select("id")
+        .eq("user_id", user.id).eq("type", "baseline_resume")
+        .order("created_at", desc=True).limit(1).execute()
+    )
+    if not baseline:
         return {"error": "No baseline resume found. Complete recovery first."}
 
     from app.workers.tasks import generate_tailored_draft, generate_cover_letter_draft
-    generate_tailored_draft.delay(user.id, job_id, baseline.data["id"])
+    generate_tailored_draft.delay(user.id, job_id, baseline["id"])
     generate_cover_letter_draft.delay(user.id, job_id)
 
     return {"data": {"status": "tailoring_queued", "job_id": job_id}}

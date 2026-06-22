@@ -10,6 +10,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _one(result):
+    return result.data[0] if result.data else None
+
+
 @router.get("/")
 async def get_tracker(user=Depends(get_current_user)):
     """Return all tracker items with job info and fit score."""
@@ -43,8 +47,10 @@ class StatusUpdate(BaseModel):
 @router.patch("/{item_id}/status")
 async def update_status(item_id: str, payload: StatusUpdate, user=Depends(get_current_user)):
     """Manually advance a tracker item to a new status."""
-    item = supabase_admin.table("tracker_items").select("user_id") \
-           .eq("id", item_id).maybe_single().execute().data
+    item = _one(
+        supabase_admin.table("tracker_items").select("user_id")
+        .eq("id", item_id).limit(1).execute()
+    )
     if not item or item["user_id"] != user.id:
         raise HTTPException(403, "Item not found or access denied.")
 

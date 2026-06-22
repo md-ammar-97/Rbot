@@ -6,6 +6,10 @@ from app.core.supabase import supabase_admin
 router = APIRouter()
 
 
+def _one(result):
+    return result.data[0] if result.data else None
+
+
 class AutoApplyRequest(BaseModel):
     job_id:      str
     artifact_id: str
@@ -38,18 +42,22 @@ async def list_sessions(user=Depends(get_current_user)):
 
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str, user=Depends(get_current_user)):
-    result = supabase_admin.table("apply_sessions").select("*") \
-             .eq("id", session_id).eq("user_id", user.id).maybe_single().execute()
-    if not result.data:
+    session = _one(
+        supabase_admin.table("apply_sessions").select("*")
+        .eq("id", session_id).eq("user_id", user.id).limit(1).execute()
+    )
+    if not session:
         raise HTTPException(404, "Session not found.")
-    return {"data": result.data}
+    return {"data": session}
 
 
 @router.post("/sessions/{session_id}/rollback")
 async def rollback_session(session_id: str, user=Depends(get_current_user)):
     """Rollback an auto-apply submission within the 60-second window."""
-    session = supabase_admin.table("apply_sessions").select("*") \
-              .eq("id", session_id).eq("user_id", user.id).maybe_single().execute().data
+    session = _one(
+        supabase_admin.table("apply_sessions").select("*")
+        .eq("id", session_id).eq("user_id", user.id).limit(1).execute()
+    )
 
     if not session:
         raise HTTPException(404, "Session not found.")

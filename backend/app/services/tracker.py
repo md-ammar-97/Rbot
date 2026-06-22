@@ -13,6 +13,10 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+def _one(result):
+    return result.data[0] if result.data else None
+
+
 def advance_tracker(
     user_id: str,
     job_id: str,
@@ -25,12 +29,14 @@ def advance_tracker(
     Move a tracker_item to new_status and write an immutable tracker_event.
     Returns the tracker_item id, or None if no action was taken.
     """
-    existing = supabase_admin.table("tracker_items").select("*") \
-               .eq("user_id", user_id).eq("job_id", job_id).maybe_single().execute()
+    existing = _one(
+        supabase_admin.table("tracker_items").select("*")
+        .eq("user_id", user_id).eq("job_id", job_id).limit(1).execute()
+    )
 
-    if existing.data:
-        item_id     = existing.data["id"]
-        from_status = existing.data["current_status"]
+    if existing:
+        item_id     = existing["id"]
+        from_status = existing["current_status"]
     else:
         result = supabase_admin.table("tracker_items").insert({
             "user_id":        user_id,
@@ -40,11 +46,9 @@ def advance_tracker(
         item_id     = result.data[0]["id"]
         from_status = "discovered"
 
-    # System transitions are validated; user-entered statuses bypass the machine
     if source != "user" and new_status not in VALID_TRANSITIONS.get(from_status, set()):
-        return None  # Invalid system transition — ignore silently
+        return None
 
-    # Write immutable event
     supabase_admin.table("tracker_events").insert({
         "tracker_item_id": item_id,
         "user_id":         user_id,
@@ -56,7 +60,6 @@ def advance_tracker(
         "metadata":        metadata or {},
     }).execute()
 
-    # Update mutable state
     supabase_admin.table("tracker_items").update({
         "current_status": new_status,
         "last_updated":   "now()",
@@ -67,12 +70,14 @@ def advance_tracker(
 
 
 def add_note(user_id: str, job_id: str, note: str) -> None:
-    existing = supabase_admin.table("tracker_items").select("id") \
-               .eq("user_id", user_id).eq("job_id", job_id).maybe_single().execute()
-    if not existing.data:
+    existing = _one(
+        supabase_admin.table("tracker_items").select("id")
+        .eq("user_id", user_id).eq("job_id", job_id).limit(1).execute()
+    )
+    if not existing:
         return
     supabase_admin.table("tracker_events").insert({
-        "tracker_item_id": existing.data["id"],
+        "tracker_item_id": existing["id"],
         "user_id":         user_id,
         "event_type":      "note",
         "source":          "user",
