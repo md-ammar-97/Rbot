@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     groq_api_key: str
     groq_primary_model: str = "llama-3.3-70b-versatile"
     groq_fast_model: str = "llama-3.1-8b-instant"
-    redis_url: str = "redis://localhost:6379/0"
     app_env: str = "development"
     app_secret_key: str = "dev-secret-change-in-production"
     frontend_url: str = "http://localhost:3000"

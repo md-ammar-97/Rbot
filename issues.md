@@ -15,7 +15,7 @@
 | B-3 | High | ✅ Fixed | Backend | Recovery endpoints 500 when user has no profile row |
 | B-4 | High | ✅ Fixed | Backend | `GET /tracker/` and `POST /tracker/note` return 500 |
 | B-5 | Medium | ✅ Fixed | Backend | `GET /jobs/{id}` 500 on nonexistent job (same class as B-2) |
-| D-1 | Critical | ⚠️ Partial | Infra | No Celery worker deployed — all background tasks never execute |
+| D-1 | Critical | ✅ Fixed | Infra | No Celery worker deployed — all background tasks never execute |
 | F-2 | High | ✅ Fixed | Frontend | Recovery step shows infinite spinner with no timeout or fallback |
 | F-3 | Medium | ✅ Fixed | Frontend | Onboarding progress circles mark skipped steps as complete (✓) |
 | F-1 | Low | ✅ Fixed | Frontend/API | Missing Bearer header returns 403, not 401 |
@@ -187,27 +187,16 @@ bearer = StrictBearer()
 ## D-1 — No Celery Worker Deployed — All Background Tasks Never Execute
 
 **Severity:** Critical  
-**Status:** ⚠️ Partial — `render.yaml` updated; manual deploy step required  
+**Status:** ✅ Fixed — replaced Celery with in-process threading; no worker or Redis needed  
 **Discovered:** 2026-06-22 via Render service list
 
-**Observed:** Every background task queued via `task.delay()` silently stalls. Affected tasks include:
-- `build_profile_graph` — triggered after resume upload and after each recovery answer
-- `generate_tailored_draft` / `generate_cover_letter_draft` — triggered by `POST /jobs/{id}/tailor`
-- Any other Celery tasks in `backend/app/workers/tasks.py`
+**Observed:** Every background task queued via `task.delay()` silently stalled. Render background workers require a paid plan; free-tier deployment had no way to run Celery.
 
-**Root cause:** `rbot-api` is the only running service. There is no background worker process, and Redis (while provisioned) has no `REDIS_URL` set on the API service.
+**Root cause:** Celery requires a separate worker process + Redis broker, neither of which are available on the free tier.
 
-**`render.yaml` is already correct** — it defines `rbot-celery` (background worker) and links `REDIS_URL` from `rbot-redis`. The services just haven't been deployed via Blueprint yet.
+**Fix:** Replaced `backend/app/workers/celery_app.py` with an in-process threading implementation. The public API (`.delay()`, `bind=True`, `self.retry()`) is identical so `tasks.py` required zero changes. Tasks now run as daemon threads inside the API process. Removed `celery[redis]` and `redis` from `requirements.txt` to speed up builds.
 
-**Manual step required — create `rbot-celery` on Render:**
-1. Go to [Render Dashboard](https://dashboard.render.com) → **New** → **Background Worker**
-2. Connect to repo `md-ammar-97/Rbot`, branch `master`
-3. Set **Root Directory**: `backend`
-4. Set **Build Command**: `pip install -r requirements.txt`
-5. Set **Start Command**: `celery -A app.workers.celery_app worker --loglevel=info -Q ingestion,profile,recovery,discovery,scoring,drafting -c 2`
-6. Copy all env vars from `rbot-api` to this service (Supabase, Groq, etc.)
-7. Add `REDIS_URL` → copy from rbot-redis **"Connect"** tab → **Internal Connection String**
-8. Also set `REDIS_URL` on `rbot-api` (same value) if not already set
+**Tradeoff vs Celery:** No retry persistence across restarts — if the API process dies mid-task, that task is lost. For MVP this is acceptable; all tasks complete in seconds via Groq API calls.
 
 ---
 
