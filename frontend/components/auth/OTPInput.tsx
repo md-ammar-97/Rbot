@@ -22,7 +22,7 @@ export function OTPInput({ length = 8, value, onChange, error, success, disabled
   const handleChange = (i: number, char: string) => {
     if (!/^[a-zA-Z0-9]*$/.test(char)) return;
     const arr = digits.slice();
-    arr[i] = char.slice(-1).toUpperCase();
+    arr[i] = char.slice(-1);
     onChange(arr.join("").trimEnd());
     if (char && i < length - 1) focus(i + 1);
   };
@@ -45,7 +45,7 @@ export function OTPInput({ length = 8, value, onChange, error, success, disabled
 
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\s/g, "").toUpperCase().slice(0, length);
+    const pasted = e.clipboardData.getData("text").replace(/\s/g, "").slice(0, length);
     onChange(pasted);
     focus(Math.min(pasted.length, length - 1));
   };
