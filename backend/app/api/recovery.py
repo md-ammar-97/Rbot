@@ -69,13 +69,24 @@ async def get_questions(user=Depends(get_current_user)):
     )
 
     if not case:
-        return {"data": {"questions": [], "case_id": None}}
+        return {"data": {"questions": [], "case_id": None, "answered": 0, "total": 0}}
+
+    # Cross-reference recovery_answers so frontend knows which are done + can pre-fill
+    saved = supabase_admin.table("recovery_answers").select("question_id, answer") \
+            .eq("case_id", case["id"]).execute().data or []
+    answered_map = {a["question_id"]: a["answer"] for a in saved}
+
+    questions = case.get("open_questions") or []
+    for q in questions:
+        q["answered"]     = q["id"] in answered_map
+        q["saved_answer"] = answered_map.get(q["id"], "")
 
     return {
         "data": {
             "case_id":   case["id"],
-            "questions": case["open_questions"],
-            "answered":  case["questions_answered_count"],
+            "questions": questions,
+            "answered":  len(answered_map),
+            "total":     len(questions),
         }
     }
 

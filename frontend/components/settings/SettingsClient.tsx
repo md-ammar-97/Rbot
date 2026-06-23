@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X, Plus, Eye, EyeOff, RefreshCw } from "lucide-react";
 
 interface BlacklistEntry {
@@ -360,12 +360,176 @@ function IntegrationsSection({ profile }: { profile: Record<string, unknown> }) 
   );
 }
 
+// ─── Resume Recovery section ─────────────────────────────────────────────────
+interface RecoveryQuestion {
+  id:           string;
+  dimension:    string;
+  question:     string;
+  answer_type:  string;
+  required:     boolean;
+  answered:     boolean;
+  saved_answer: string;
+}
+
+function RecoverySection() {
+  const [loading,    setLoading]    = useState(true);
+  const [status,     setStatus]     = useState("");
+  const [questions,  setQuestions]  = useState<RecoveryQuestion[]>([]);
+  const [caseId,     setCaseId]     = useState<string | null>(null);
+  const [answers,    setAnswers]    = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [msg,        setMsg]        = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const token = await getToken();
+    const [sResp, qResp] = await Promise.all([
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/status`,    { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/questions`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    const sData = await sResp.json();
+    const qData = await qResp.json();
+    setStatus(sData.data.recovery_status);
+    const qs: RecoveryQuestion[] = qData.data.questions || [];
+    setQuestions(qs);
+    setCaseId(qData.data.case_id);
+    // Pre-fill any previously saved answers
+    const pre: Record<string, string> = {};
+    for (const q of qs) {
+      if (q.saved_answer) pre[q.id] = q.saved_answer;
+    }
+    setAnswers(pre);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const unanswered  = questions.filter((q) => !q.answered);
+  const filledPairs = unanswered.filter((q) => answers[q.id]?.trim());
+
+  const handleSubmit = async () => {
+    if (!caseId || filledPairs.length === 0) return;
+    setSubmitting(true);
+    setMsg("");
+    try {
+      const token = await getToken();
+      let lastResp: { data?: { status?: string } } | null = null;
+      for (const q of filledPairs) {
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/answer`, {
+          method:  "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body:    JSON.stringify({ question_id: q.id, question_text: q.question, answer: answers[q.id], case_id: caseId }),
+        });
+        lastResp = await resp.json();
+      }
+      if (lastResp?.data?.status === "recovery_complete") {
+        setStatus("complete");
+        setMsg("Recovery complete! Your baseline resume is being generated.");
+      } else {
+        setMsg(`${filledPairs.length} answer${filledPairs.length !== 1 ? "s" : ""} saved.`);
+        await load();
+      }
+    } catch {
+      setMsg("Error saving answers. Please try again.");
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setMsg(""), 5000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Section title="Resume Quality Recovery" description="Answer a few questions so PMFit can build your baseline resume and score jobs for you.">
+        <div className="flex items-center gap-2 text-pmfit-text-secondary text-[13px]">
+          <span className="w-4 h-4 border-2 border-pmfit-blue border-t-transparent rounded-full animate-spin" />
+          Loading…
+        </div>
+      </Section>
+    );
+  }
+
+  if (status === "complete") {
+    return (
+      <Section title="Resume Quality Recovery" description="Answer a few questions so PMFit can build your baseline resume and score jobs for you.">
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-pmfit-teal-subtle border border-pmfit-teal/20">
+          <span className="text-pmfit-teal text-2xl font-bold">✓</span>
+          <div>
+            <p className="text-[14px] font-semibold text-pmfit-text">Recovery Complete</p>
+            <p className="text-[12px] text-pmfit-text-secondary mt-0.5">Your baseline resume is ready and jobs are actively being scored for you.</p>
+          </div>
+        </div>
+      </Section>
+    );
+  }
+
+  // All answered but still building (status update in flight)
+  if (unanswered.length === 0 && status === "in_progress") {
+    return (
+      <Section title="Resume Quality Recovery" description="Answer a few questions so PMFit can build your baseline resume and score jobs for you.">
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-pmfit-blue/5 border border-pmfit-blue/20">
+          <span className="w-5 h-5 border-2 border-pmfit-blue border-t-transparent rounded-full animate-spin shrink-0" />
+          <div>
+            <p className="text-[14px] font-semibold text-pmfit-text">Building your baseline resume…</p>
+            <p className="text-[12px] text-pmfit-text-secondary mt-0.5">All questions answered. Refresh in a moment to confirm completion.</p>
+          </div>
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section
+      title="Resume Quality Recovery"
+      description={`${unanswered.length} question${unanswered.length !== 1 ? "s" : ""} remaining — answer them to unlock job scoring and baseline resume generation.`}
+    >
+      <div className="space-y-5">
+        {unanswered.map((q) => (
+          <div key={q.id} className="border border-pmfit-border rounded-xl p-4">
+            <p className="text-[11px] font-semibold text-pmfit-blue tracking-wide uppercase mb-1.5">
+              {q.dimension.replace(/_/g, " ")}
+            </p>
+            <p className="text-[14px] text-pmfit-text font-medium mb-3">{q.question}</p>
+            <textarea
+              className="w-full border border-pmfit-border rounded-xl p-3 text-[14px] text-pmfit-text
+                         placeholder:text-pmfit-text-muted focus:outline-none focus:border-pmfit-blue
+                         resize-none transition-colors min-h-[80px]"
+              placeholder="Your answer…"
+              value={answers[q.id] || ""}
+              onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+              disabled={submitting}
+            />
+          </div>
+        ))}
+      </div>
+
+      {msg && (
+        <p className={`text-[13px] mt-3 ${msg.includes("Error") ? "text-pmfit-red" : "text-pmfit-teal"}`}>{msg}</p>
+      )}
+
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleSubmit}
+          disabled={filledPairs.length === 0 || submitting}
+          className="btn-primary text-[13px] h-10 px-5 flex items-center gap-2 disabled:opacity-50"
+        >
+          {submitting ? (
+            <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving…</>
+          ) : (
+            `Submit${filledPairs.length > 0 ? ` ${filledPairs.length} Answer${filledPairs.length !== 1 ? "s" : ""}` : ""}`
+          )}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 // ─── Root ────────────────────────────────────────────────────────────────────
 export function SettingsClient({ profile, blacklist }: Props) {
   return (
     <div className="max-w-2xl space-y-6">
       <ProfileSection      profile={profile} />
       <JobTargetingSection profile={profile} />
+      <RecoverySection />
       <BlacklistSection    initial={blacklist} />
       <IntegrationsSection profile={profile} />
     </div>
