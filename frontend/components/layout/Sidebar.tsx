@@ -14,14 +14,18 @@ import {
   LogOut,
   LifeBuoy,
   CheckCircle2,
+  ScrollText,
+  SendHorizonal,
 } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard",       href: "/dashboard", icon: LayoutDashboard },
-  { label: "Job Discovery",   href: "/jobs",       icon: Search },
-  { label: "Resume Recovery", href: "/profile",    icon: FileText },
-  { label: "Tracker",         href: "/tracker",    icon: Kanban },
-  { label: "Settings",        href: "/settings",   icon: Settings },
+  { label: "Dashboard",       href: "/dashboard",  icon: LayoutDashboard },
+  { label: "Job Discovery",   href: "/jobs",        icon: Search },
+  { label: "Resume Recovery", href: "/profile",     icon: FileText },
+  { label: "Documents",       href: "/artifacts",   icon: ScrollText },
+  { label: "Tracker",         href: "/tracker",     icon: Kanban },
+  { label: "Applications",    href: "/apply",       icon: SendHorizonal },
+  { label: "Settings",        href: "/settings",    icon: Settings },
 ];
 
 export function Sidebar() {

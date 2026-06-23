@@ -1,4 +1,5 @@
 import uuid
+import httpx
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from pydantic import BaseModel
 from app.core.security import get_current_user
@@ -122,6 +123,55 @@ async def trigger_discovery(user=Depends(get_current_user)):
     from app.workers.tasks import discover_and_normalize_jobs
     discover_and_normalize_jobs.delay()
     return {"data": {"status": "discovery_queued"}}
+
+
+@router.get("/github/oauth/start")
+async def github_oauth_start(user=Depends(get_current_user)):
+    """Return a GitHub OAuth authorization URL for private repo access."""
+    from app.core.config import settings
+    redirect_uri = f"{settings.frontend_url}/auth/github-callback"
+    url = (
+        "https://github.com/login/oauth/authorize"
+        f"?client_id={settings.github_client_id}"
+        f"&redirect_uri={redirect_uri}"
+        f"&scope=repo,read:user"
+        f"&state={user.id}"
+    )
+    return {"data": {"oauth_url": url}}
+
+
+class GitHubOAuthPayload(BaseModel):
+    code:  str
+    state: str
+
+
+@router.post("/github/oauth/callback")
+async def github_oauth_callback(payload: GitHubOAuthPayload, user=Depends(get_current_user)):
+    """Exchange a GitHub OAuth code for an access token and store it on the profile."""
+    from app.core.config import settings
+    if payload.state != user.id:
+        raise HTTPException(403, "State mismatch — possible CSRF attempt.")
+    try:
+        resp = httpx.post(
+            "https://github.com/login/oauth/access_token",
+            json={
+                "client_id":     settings.github_client_id,
+                "client_secret": settings.github_client_secret,
+                "code":          payload.code,
+            },
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except (httpx.HTTPError, httpx.TimeoutException) as e:
+        raise HTTPException(502, f"GitHub token exchange failed: {e}")
+
+    token = resp.json().get("access_token")
+    if not token:
+        raise HTTPException(400, "GitHub did not return an access token.")
+
+    supabase_admin.table("profiles").update({"github_token": token}).eq("id", user.id).execute()
+    return {"data": {"status": "github_connected"}}
 
 
 @router.get("/evidence")

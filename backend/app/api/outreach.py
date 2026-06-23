@@ -49,3 +49,11 @@ async def discard_draft(draft_id: str, user=Depends(get_current_user)):
     supabase_admin.table("outreach_drafts").update({"user_discarded": True}) \
     .eq("id", draft_id).eq("user_id", user.id).execute()
     return {"data": {"status": "discarded"}}
+
+
+@router.patch("/{draft_id}/send")
+async def mark_sent(draft_id: str, user=Depends(get_current_user)):
+    supabase_admin.table("outreach_drafts").update({
+        "user_sent": True, "sent_at": "now()"
+    }).eq("id", draft_id).eq("user_id", user.id).execute()
+    return {"data": {"status": "marked_sent"}}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Plus, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { X, Plus, Eye, EyeOff, RefreshCw, Github, CheckCircle2 } from "lucide-react";
 
 interface BlacklistEntry {
   id:              string;
@@ -540,6 +540,101 @@ function RecoverySection() {
   );
 }
 
+// ─── GitHub section ──────────────────────────────────────────────────────────
+function GitHubSection({ profile }: { profile: Record<string, unknown> }) {
+  const [connected,  setConnected]  = useState(Boolean(profile.github_token));
+  const [loading,    setLoading]    = useState(false);
+  const [msg,        setMsg]        = useState("");
+
+  // On mount: if ?github_code param is present, exchange it for a token
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code   = params.get("github_code");
+    const state  = params.get("github_state");
+    if (!code) return;
+
+    // Clear the params from the URL immediately
+    const clean = window.location.pathname;
+    window.history.replaceState({}, "", clean);
+
+    (async () => {
+      setLoading(true);
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const token = (await createClient().auth.getSession()).data.session?.access_token ?? "";
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/intake/github/oauth/callback`, {
+          method:  "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body:    JSON.stringify({ code, state: state ?? "" }),
+        });
+        if (resp.ok) {
+          setConnected(true);
+          setMsg("GitHub connected! Private repositories can now be added.");
+        } else {
+          const err = await resp.json();
+          setMsg(err.detail ?? "GitHub connection failed.");
+        }
+      } catch {
+        setMsg("Network error during GitHub connection.");
+      } finally {
+        setLoading(false);
+        setTimeout(() => setMsg(""), 8000);
+      }
+    })();
+  }, []); // eslint-disable-line
+
+  const connect = async () => {
+    setLoading(true);
+    setMsg("");
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const token = (await createClient().auth.getSession()).data.session?.access_token ?? "";
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/intake/github/oauth/start`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error("Failed to get OAuth URL.");
+      const { data } = await resp.json();
+      window.location.href = data.oauth_url;
+    } catch {
+      setMsg("Could not initiate GitHub OAuth. Check that GITHUB_CLIENT_ID is configured.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Section title="GitHub Integration" description="Connect GitHub to include private project READMEs as evidence for profile recovery.">
+      {connected ? (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-pmfit-teal-subtle border border-pmfit-teal/20">
+          <CheckCircle2 size={20} className="text-pmfit-teal shrink-0" />
+          <div>
+            <p className="text-[14px] font-semibold text-pmfit-text">GitHub Connected</p>
+            <p className="text-[12px] text-pmfit-text-secondary mt-0.5">Private repos can be added from the Resume Recovery page.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-[13px] text-pmfit-text-secondary">
+            Without a connection, only public repositories can be imported. Connect GitHub to allow private repo access.
+          </p>
+          <button
+            onClick={connect}
+            disabled={loading}
+            className="btn-secondary text-[13px] h-10 px-5 flex items-center gap-2 w-fit disabled:opacity-50"
+          >
+            <Github size={15} />
+            {loading ? "Redirecting to GitHub…" : "Connect GitHub (Private Repos)"}
+          </button>
+        </div>
+      )}
+      {msg && (
+        <p className={`text-[13px] mt-2 ${msg.includes("connected") ? "text-pmfit-teal" : "text-pmfit-red"}`}>
+          {msg}
+        </p>
+      )}
+    </Section>
+  );
+}
+
 // ─── Root ────────────────────────────────────────────────────────────────────
 export function SettingsClient({ profile, blacklist }: Props) {
   return (
@@ -549,6 +644,7 @@ export function SettingsClient({ profile, blacklist }: Props) {
       <RecoverySection />
       <BlacklistSection    initial={blacklist} />
       <IntegrationsSection profile={profile} />
+      <GitHubSection       profile={profile} />
     </div>
   );
 }

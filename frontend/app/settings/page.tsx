@@ -10,7 +10,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url, target_roles, target_locations, remote_preference, work_authorization, sponsorship_required, compensation_min, compensation_max, search_intent, auto_apply_enabled, apify_api_key")
+    .select("full_name, avatar_url, target_roles, target_locations, remote_preference, work_authorization, sponsorship_required, compensation_min, compensation_max, search_intent, auto_apply_enabled, apify_api_key, github_token")
     .eq("id", user.id)
     .single();
 
