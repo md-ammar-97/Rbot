@@ -48,7 +48,7 @@ export default async function ApplyPage() {
     .eq("user_id", user.id)
     .order("started_at", { ascending: false });
 
-  const sessions: ApplySession[] = (rawSessions ?? []) as ApplySession[];
+  const sessions: ApplySession[] = (rawSessions ?? []) as unknown as ApplySession[];
 
   return (
     <AppShell title="Applications" avatarUrl={profile?.avatar_url} userName={profile?.full_name}>
