@@ -25,9 +25,11 @@ const COLUMNS: { status: string; label: string; color: string }[] = [
   { status: "applied",             label: "Applied",       color: "#20C997" },
   { status: "outreach_sent",       label: "Outreach",      color: "#1D7EFF" },
   { status: "recruiter_response",  label: "Recruiter",     color: "#FF8C00" },
-  { status: "interview_scheduled", label: "Interview",     color: "#FF8C00" },
+  { status: "interview_scheduled", label: "Interviewing",  color: "#FF8C00" },
   { status: "final_round",         label: "Final Round",   color: "#6B5ACD" },
   { status: "offer_received",      label: "Offer",         color: "#20C997" },
+  { status: "rejected",            label: "Rejected",      color: "#E63946" },
+  { status: "ghosted",             label: "Ghosted",       color: "#6B7280" },
 ];
 
 const containerV = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
@@ -64,7 +66,7 @@ export function KanbanBoard({ userId }: { userId: string }) {
   if (loading) {
     return (
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {COLUMNS.slice(0, 5).map((col) => (
+        {COLUMNS.slice(0, 6).map((col) => (
           <div key={col.status} className="flex-shrink-0 w-60 space-y-3">
             <Skeleton className="h-6 w-28 rounded-lg" />
             <Skeleton className="h-20 w-full rounded-xl" />
@@ -80,9 +82,7 @@ export function KanbanBoard({ userId }: { userId: string }) {
     return acc;
   }, {});
 
-  const visibleCols = COLUMNS.filter(
-    (col, i) => i < 5 || (byStatus[col.status]?.length ?? 0) > 0
-  );
+  const visibleCols = COLUMNS;
 
   return (
     <div className="w-full overflow-x-auto pb-4">

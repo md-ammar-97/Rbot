@@ -45,9 +45,9 @@ export default function ResumeUploadStep({ userId, onNext, onComplete }: Props) 
 
   return (
     <div>
-      <h2 className="text-[22px] font-semibold text-apple-text mb-2">Upload your resume</h2>
-      <p className="text-[15px] text-apple-text-secondary mb-6">
-        PDF, DOCX, or TXT · Max 10 MB. We'll extract your experience automatically.
+      <h2 className="text-[22px] font-semibold text-pmfit-text mb-2">Upload your resume</h2>
+      <p className="text-[15px] text-pmfit-text-secondary mb-6">
+        PDF, DOCX, or TXT · Max 10 MB. We&apos;ll extract your experience automatically.
       </p>
 
       <div
@@ -57,14 +57,21 @@ export default function ResumeUploadStep({ userId, onNext, onComplete }: Props) 
         onKeyDown={(e) => e.key === "Enter" && fileRef.current?.click()}
         className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-colors ${
           status === "done"
-            ? "border-apple-success bg-apple-success-subtle"
-            : "border-apple-border hover:border-apple-accent"
+            ? "border-pmfit-teal bg-pmfit-teal-subtle"
+            : "border-pmfit-border hover:border-pmfit-blue"
         }`}
       >
-        {status === "idle"      && <p className="text-[15px] text-apple-text-secondary">Click or drag your resume here</p>}
-        {status === "uploading" && <p className="text-[15px] text-apple-accent">Uploading…</p>}
-        {status === "done"      && <p className="text-[15px] text-apple-success font-medium">✓ {message}</p>}
-        {status === "error"     && <p className="text-[15px] text-apple-destructive">{message}</p>}
+        {status === "idle" && (
+          <p className="text-[15px] text-pmfit-text-secondary">Click or drag your resume here</p>
+        )}
+        {status === "uploading" && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-pmfit-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-[14px] text-pmfit-blue animate-pulse">Uploading…</p>
+          </div>
+        )}
+        {status === "done"  && <p className="text-[15px] text-pmfit-teal font-medium">✓ {message}</p>}
+        {status === "error" && <p className="text-[15px] text-pmfit-red">{message}</p>}
       </div>
 
       <input

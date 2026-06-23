@@ -36,11 +36,11 @@ export default function LinkedInStep({ userId, onNext, onComplete }: Props) {
 
   return (
     <div>
-      <h2 className="text-[22px] font-semibold text-apple-text mb-2">LinkedIn export</h2>
-      <p className="text-[15px] text-apple-text-secondary mb-2">
+      <h2 className="text-[22px] font-semibold text-pmfit-text mb-2">LinkedIn export</h2>
+      <p className="text-[15px] text-pmfit-text-secondary mb-2">
         Strengthens your profile with more accurate dates, skills, and job descriptions.
       </p>
-      <ol className="text-[13px] text-apple-text-secondary list-decimal ml-4 mb-6 space-y-1">
+      <ol className="text-[13px] text-pmfit-text-secondary list-decimal ml-4 mb-6 space-y-1">
         <li>Go to LinkedIn → Me → Settings → Data privacy → Get a copy of your data</li>
         <li>Select &quot;Want something in particular&quot; → check Jobs, Profile, Connections</li>
         <li>Download and upload the ZIP file here</li>
@@ -52,13 +52,22 @@ export default function LinkedInStep({ userId, onNext, onComplete }: Props) {
         onClick={() => fileRef.current?.click()}
         onKeyDown={(e) => e.key === "Enter" && fileRef.current?.click()}
         className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
-          status === "done" ? "border-apple-success bg-apple-success-subtle" : "border-apple-border hover:border-apple-accent"
+          status === "done"
+            ? "border-pmfit-teal bg-pmfit-teal-subtle"
+            : "border-pmfit-border hover:border-pmfit-blue"
         }`}
       >
-        {status === "idle"      && <p className="text-[15px] text-apple-text-secondary">Click to upload LinkedIn export (.zip)</p>}
-        {status === "uploading" && <p className="text-[15px] text-apple-accent">Uploading…</p>}
-        {status === "done"      && <p className="text-[15px] text-apple-success font-medium">✓ {message}</p>}
-        {status === "error"     && <p className="text-[15px] text-apple-destructive">{message}</p>}
+        {status === "idle" && (
+          <p className="text-[15px] text-pmfit-text-secondary">Click to upload LinkedIn export (.zip)</p>
+        )}
+        {status === "uploading" && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-pmfit-blue border-t-transparent rounded-full animate-spin" />
+            <p className="text-[14px] text-pmfit-blue animate-pulse">Uploading…</p>
+          </div>
+        )}
+        {status === "done"  && <p className="text-[15px] text-pmfit-teal font-medium">✓ {message}</p>}
+        {status === "error" && <p className="text-[15px] text-pmfit-red">{message}</p>}
       </div>
 
       <input

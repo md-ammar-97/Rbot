@@ -14,13 +14,19 @@ interface LogoProps {
 }
 
 const sizeMap = {
-  sm: { icon: 24, height: 20 },
-  md: { icon: 32, height: 28 },
-  lg: { icon: 40, height: 34 },
+  sm: { icon: 28, height: 22, text: "text-[16px]" },
+  md: { icon: 40, height: 32, text: "text-[20px]" },
+  lg: { icon: 48, height: 40, text: "text-[24px]" },
 };
 
 export function Logo({ variant = "top", size = "md", href = "/", dark = false, className = "" }: LogoProps) {
   const s = sizeMap[size];
+
+  // On dark backgrounds the PNG (white bg) is wrapped in a white rounded chip
+  // so the actual logo artwork is visible — no CSS filter tricks needed.
+  const iconClass = dark
+    ? "rounded-lg bg-white p-[3px]"
+    : "rounded-lg mix-blend-multiply";
 
   const content = variant === "icon" ? (
     <Image
@@ -28,7 +34,7 @@ export function Logo({ variant = "top", size = "md", href = "/", dark = false, c
       alt="PMFit"
       width={s.icon}
       height={s.icon}
-      className={`rounded-lg ${dark ? "" : "mix-blend-multiply"}`}
+      className={iconClass}
       priority
     />
   ) : variant === "black" ? (
@@ -41,20 +47,20 @@ export function Logo({ variant = "top", size = "md", href = "/", dark = false, c
       priority
     />
   ) : (
-    // top variant: icon + text, handled inline so we can color text for dark bg
-    <div className="flex items-center gap-2">
+    // top variant: icon chip + wordmark
+    <div className="flex items-center gap-2.5">
       <Image
         src="/logo-icon.png"
         alt="PMFit"
         width={s.icon}
         height={s.icon}
-        className={`rounded-lg ${dark ? "brightness-0 invert" : "mix-blend-multiply"}`}
+        className={iconClass}
         priority
       />
       <span
-        className={`font-bold tracking-tight leading-none ${
-          size === "sm" ? "text-[16px]" : size === "lg" ? "text-[22px]" : "text-[18px]"
-        } ${dark ? "text-white" : "text-pmfit-text"}`}
+        className={`font-extrabold tracking-tight leading-none ${s.text} ${
+          dark ? "text-white" : "text-pmfit-text"
+        }`}
       >
         PM<span className={dark ? "text-pmfit-blue-light" : "text-pmfit-blue"}>Fit</span>
       </span>

@@ -41,6 +41,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  // Redirect logged-in users away from the public landing page
+  if ((path === "/" || path === "/login") && user) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   return response;
 }
 
