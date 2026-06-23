@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FitGauge } from "./FitGauge";
 import {
@@ -10,8 +10,6 @@ import {
   Zap,
   Clock,
   ExternalLink,
-  Download,
-  Lock,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -23,35 +21,30 @@ interface ScoreBreakdown {
   profile_completeness?: { score: number };
 }
 
-interface Artifact {
-  id:           string;
-  type:         string;
-  storage_path: string;
-}
-
 interface JobCardProps {
-  fitScore:            number;
-  evidenceConfidence:  string;
+  fitScore:              number;
+  evidenceConfidence:    string;
   automationEligibility: string;
-  fitExplanation:      string | null;
-  ineligibilityReason: string | null;
-  scoreBreakdown?:     { components?: ScoreBreakdown };
-  recoveryComplete:    boolean;
+  fitExplanation:        string | null;
+  ineligibilityReason:   string | null;
+  scoreBreakdown?:       { components?: ScoreBreakdown };
+  recoveryComplete:      boolean;
   job: {
-    id:               string;
-    title:            string;
-    company:          string;
-    location:         string;
-    seniority_level:  string;
-    remote_eligible:  boolean;
-    ats_family:       string;
-    posting_date:     string;
-    board_categories: string[];
-    source_regions:   string[];
-    is_startup:       boolean;
-    is_remote_first:  boolean;
+    id:                  string;
+    title:               string;
+    company:             string;
+    location_normalized: string | null;
+    seniority_level:     string;
+    remote_eligible:     boolean;
+    ats_family:          string;
+    posting_date:        string;
+    source_url:          string | null;
+    req_id:              string | null;
+    board_categories:    string[];
+    source_regions:      string[];
+    is_startup:          boolean;
+    is_remote_first:     boolean;
   };
-  onTailor: (jobId: string) => Promise<void>;
 }
 
 const AVATAR_COLORS = ["#0052CC","#6B5ACD","#20C997","#FF8C00","#E63946","#1D7EFF"];
@@ -74,78 +67,19 @@ const confidenceClass: Record<string, string> = {
   low:    "badge-orange",
 };
 
-function daysAgo(dateStr: string) {
+function formatDate(dateStr: string) {
+  if (!dateStr) return "";
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-  return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : `${diff}d ago`;
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 14)  return `${diff}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-type TailorState = "idle" | "queuing" | "generating" | "done" | "timeout" | "error";
-
-export function JobCard({ fitScore, evidenceConfidence, automationEligibility, fitExplanation, ineligibilityReason, scoreBreakdown, recoveryComplete, job, onTailor }: JobCardProps) {
-  const [expanded,     setExpanded]     = useState(false);
-  const [tailorState,  setTailorState]  = useState<TailorState>("idle");
-  const [artifacts,    setArtifacts]    = useState<Artifact[]>([]);
-  const [downloading,  setDownloading]  = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+export function JobCard({ fitScore, evidenceConfidence, automationEligibility, fitExplanation, ineligibilityReason, scoreBreakdown, job }: JobCardProps) {
+  const [expanded, setExpanded] = useState(false);
 
   const color = avatarColor(job.company);
-
-  const pollArtifacts = (token: string) => {
-    let elapsed = 0;
-    pollRef.current = setInterval(async () => {
-      elapsed += 3;
-      if (elapsed > 60) {
-        clearInterval(pollRef.current!);
-        setTailorState("timeout");
-        return;
-      }
-      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/${job.id}/artifacts`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      const relevant = (data.data ?? []).filter((a: Artifact) =>
-        a.type === "tailored_resume" || a.type === "cover_letter"
-      );
-      if (relevant.length > 0) {
-        clearInterval(pollRef.current!);
-        setArtifacts(relevant);
-        setTailorState("done");
-      }
-    }, 3000);
-  };
-
-  const handleTailor = async () => {
-    if (!recoveryComplete) return;
-    setTailorState("queuing");
-    try {
-      const token = (await import("@/lib/supabase/client"))
-        .createClient().auth.getSession().then((r) => r.data.session?.access_token ?? "");
-      const t = await token;
-      await onTailor(job.id);
-      setTailorState("generating");
-      pollArtifacts(t);
-    } catch {
-      setTailorState("error");
-    }
-  };
-
-  const download = async (artifact: Artifact) => {
-    setDownloading(artifact.id);
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const t = (await createClient().auth.getSession()).data.session?.access_token ?? "";
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/${job.id}/artifacts/${artifact.id}/url`, {
-        headers: { Authorization: `Bearer ${t}` },
-      });
-      const { data } = await res.json();
-      const a = document.createElement("a");
-      a.href = data.url;
-      a.download = `${artifact.type}-${job.id}.pdf`;
-      a.click();
-    } finally {
-      setDownloading(null);
-    }
-  };
 
   const breakdownData = scoreBreakdown?.components
     ? Object.entries(scoreBreakdown.components).map(([key, v]) => ({
@@ -179,13 +113,13 @@ export function JobCard({ fitScore, evidenceConfidence, automationEligibility, f
             <p className="text-[16px] font-semibold text-pmfit-text truncate">{job.title}</p>
             <p className="text-[13px] text-pmfit-text-secondary">{job.company}</p>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
-              {job.location && (
+              {job.location_normalized && (
                 <span className="flex items-center gap-1 text-[12px] text-pmfit-text-muted">
-                  <MapPin size={11} /> {job.location}{job.remote_eligible ? " · Remote OK" : ""}
+                  <MapPin size={11} /> {job.location_normalized}{job.remote_eligible ? " · Remote OK" : ""}
                 </span>
               )}
               <span className="flex items-center gap-1 text-[12px] text-pmfit-text-muted">
-                <Clock size={11} /> {daysAgo(job.posting_date)}
+                <Clock size={11} /> {formatDate(job.posting_date)}
               </span>
               <span className="text-[11px] text-pmfit-text-muted uppercase">{job.ats_family}</span>
             </div>
@@ -229,52 +163,16 @@ export function JobCard({ fitScore, evidenceConfidence, automationEligibility, f
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          {/* Tailor button — gated on recovery */}
-          {!recoveryComplete ? (
-            <div className="relative group">
-              <button disabled className="btn-primary text-[13px] h-8 px-4 opacity-40 flex items-center gap-1.5">
-                <Lock size={12} /> Generate Tailored Resume
-              </button>
-              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 whitespace-nowrap bg-pmfit-navy text-white text-[11px] rounded-lg px-3 py-1.5 shadow-lg">
-                Complete resume recovery first
-              </div>
-            </div>
-          ) : tailorState === "idle" ? (
-            <button onClick={handleTailor} className="btn-primary text-[13px] h-8 px-4">
-              Generate Tailored Resume
-            </button>
-          ) : tailorState === "queuing" ? (
-            <button disabled className="btn-primary text-[13px] h-8 px-4 flex items-center gap-2 opacity-70">
-              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Queuing…
-            </button>
-          ) : tailorState === "generating" ? (
-            <button disabled className="btn-primary text-[13px] h-8 px-4 flex items-center gap-2 opacity-70">
-              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating…
-            </button>
-          ) : tailorState === "done" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {artifacts.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => download(a)}
-                  disabled={downloading === a.id}
-                  className="btn-secondary text-[12px] h-8 px-3 flex items-center gap-1.5"
-                >
-                  <Download size={12} />
-                  {downloading === a.id ? "Downloading…" : a.type === "cover_letter" ? "Cover Letter" : "Tailored Resume"}
-                </button>
-              ))}
-            </div>
-          ) : tailorState === "timeout" ? (
-            <button onClick={handleTailor} className="btn-secondary text-[13px] h-8 px-4 text-pmfit-orange">
-              Still generating — retry
-            </button>
-          ) : (
-            <button onClick={handleTailor} className="btn-secondary text-[13px] h-8 px-4 text-pmfit-red">
-              Error — retry
-            </button>
+          {job.source_url && (
+            <a
+              href={job.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary text-[13px] h-8 px-4 inline-flex items-center gap-1.5"
+            >
+              Full Job Details <ExternalLink size={12} />
+            </a>
           )}
-
           <button
             onClick={() => setExpanded(!expanded)}
             className="btn-ghost text-[13px] h-8 px-3 ml-auto"
@@ -321,12 +219,11 @@ export function JobCard({ fitScore, evidenceConfidence, automationEligibility, f
               ) : (
                 <p className="text-[13px] text-pmfit-text-muted">Breakdown not available for this job.</p>
               )}
-              <a
-                href={`/apply/${job.id}`}
-                className="inline-flex items-center gap-1 text-[13px] text-pmfit-blue hover:underline font-medium"
-              >
-                Full job details <ExternalLink size={12} />
-              </a>
+              {job.req_id && (
+                <p className="text-[11px] text-pmfit-text-muted">
+                  Req ID: <span className="font-mono">{job.req_id}</span>
+                </p>
+              )}
             </div>
           </motion.div>
         )}

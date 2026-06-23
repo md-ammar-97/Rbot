@@ -49,9 +49,9 @@ async def list_jobs(
         .select(
             "fit_score, evidence_confidence, automation_eligibility, fit_explanation, "
             "score_breakdown, ineligibility_reason, automation_block_reason, scored_at, "
-            "jobs(id, title, company, location, seniority_level, remote_eligible, "
+            "jobs(id, title, company, location_normalized, seniority_level, remote_eligible, "
             "     ats_family, domains, required_skills, posting_date, first_seen_at, "
-            "     board_categories, source_regions, is_startup, is_remote_first)"
+            "     source_url, req_id, board_categories, source_regions, is_startup, is_remote_first)"
         )
         .eq("user_id", user.id)
         .gte("fit_score", min_fit)

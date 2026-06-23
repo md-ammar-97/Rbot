@@ -8,10 +8,14 @@ interface AddedItem {
   current_status: string;
   last_updated:   string;
   jobs: {
-    id:         string;
-    title:      string;
-    company:    string;
-    ats_family: string;
+    id:                  string;
+    title:               string;
+    company:             string;
+    ats_family:          string;
+    source_url:          string | null;
+    location_normalized: string | null;
+    req_id:              string | null;
+    posting_date:        string | null;
   };
 }
 
@@ -27,6 +31,7 @@ export function AddJobModal({ onClose, onAdded }: Props) {
   const [company,         setCompany]         = useState("");
   const [applicationDate, setApplicationDate] = useState(today);
   const [jobDescription,  setJobDescription]  = useState("");
+  const [jobUrl,          setJobUrl]          = useState("");
   const [saving,          setSaving]          = useState(false);
   const [error,           setError]           = useState("");
 
@@ -47,6 +52,7 @@ export function AddJobModal({ onClose, onAdded }: Props) {
           company:          company.trim(),
           application_date: applicationDate,
           job_description:  jobDescription.trim() || null,
+          job_url:          jobUrl.trim() || null,
         }),
       });
 
@@ -61,10 +67,14 @@ export function AddJobModal({ onClose, onAdded }: Props) {
         current_status: "applied",
         last_updated:   new Date().toISOString(),
         jobs: {
-          id:         data.job_id,
-          title:      title.trim(),
-          company:    company.trim(),
-          ats_family: "manual",
+          id:                  data.job_id,
+          title:               title.trim(),
+          company:             company.trim(),
+          ats_family:          "manual",
+          source_url:          jobUrl.trim() || null,
+          location_normalized: null,
+          req_id:              null,
+          posting_date:        applicationDate,
         },
       });
       onClose();
@@ -125,6 +135,20 @@ export function AddJobModal({ onClose, onAdded }: Props) {
               type="date"
               value={applicationDate}
               onChange={(e) => setApplicationDate(e.target.value)}
+              className="input w-full text-[14px]"
+              disabled={saving}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-semibold text-pmfit-text-secondary mb-1.5 uppercase tracking-wide">
+              Job URL <span className="text-pmfit-text-muted font-normal normal-case">(optional)</span>
+            </label>
+            <input
+              type="url"
+              placeholder="https://company.com/careers/..."
+              value={jobUrl}
+              onChange={(e) => setJobUrl(e.target.value)}
               className="input w-full text-[14px]"
               disabled={saving}
             />

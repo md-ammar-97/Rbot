@@ -16,18 +16,20 @@ interface ScoredJob {
   ineligibility_reason:   string | null;
   score_breakdown:        { components?: Record<string, { score: number }> } | null;
   jobs: {
-    id:               string;
-    title:            string;
-    company:          string;
-    location:         string;
-    seniority_level:  string;
-    remote_eligible:  boolean;
-    ats_family:       string;
-    posting_date:     string;
-    board_categories: string[];
-    source_regions:   string[];
-    is_startup:       boolean;
-    is_remote_first:  boolean;
+    id:                  string;
+    title:               string;
+    company:             string;
+    location_normalized: string | null;
+    seniority_level:     string;
+    remote_eligible:     boolean;
+    ats_family:          string;
+    posting_date:        string;
+    source_url:          string | null;
+    req_id:              string | null;
+    board_categories:    string[];
+    source_regions:      string[];
+    is_startup:          boolean;
+    is_remote_first:     boolean;
   };
 }
 
@@ -76,14 +78,6 @@ export default function JobsPage() {
       setLoading(false);
     })();
   }, [minFit, remoteOnly, startupOnly, sourceRegion, boardCategory]); // eslint-disable-line
-
-  const requestTailoring = async (jobId: string) => {
-    const token = (await supabase.auth.getSession()).data.session?.access_token ?? "";
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/${jobId}/tailor`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  };
 
   const filtered = jobs.filter((j) =>
     !query ||
@@ -211,7 +205,6 @@ export default function JobsPage() {
                 scoreBreakdown={item.score_breakdown ?? undefined}
                 recoveryComplete={recoveryComplete}
                 job={item.jobs}
-                onTailor={requestTailoring}
               />
             </motion.div>
           ))}

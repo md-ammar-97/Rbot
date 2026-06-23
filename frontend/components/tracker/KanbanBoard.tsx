@@ -13,10 +13,14 @@ interface TrackerItem {
   current_status: string;
   last_updated:   string;
   jobs: {
-    id:         string;
-    title:      string;
-    company:    string;
-    ats_family: string;
+    id:                  string;
+    title:               string;
+    company:             string;
+    ats_family:          string;
+    source_url:          string | null;
+    location_normalized: string | null;
+    req_id:              string | null;
+    posting_date:        string | null;
   } | null;
 }
 
@@ -46,7 +50,7 @@ export function KanbanBoard({ userId }: { userId: string }) {
     (async () => {
       const { data } = await supabase
         .from("tracker_items")
-        .select("id, current_status, last_updated, jobs(id, title, company, ats_family)")
+        .select("id, current_status, last_updated, jobs(id, title, company, ats_family, source_url, location_normalized, req_id, posting_date)")
         .eq("user_id", userId)
         .not("current_status", "in", "(closed_accepted,closed_rejected,closed_withdrawn)")
         .order("last_updated", { ascending: false });
@@ -154,6 +158,10 @@ export function KanbanBoard({ userId }: { userId: string }) {
                       atsFamily={item.jobs?.ats_family ?? ""}
                       updatedAt={item.last_updated}
                       jobId={item.jobs?.id ?? ""}
+                      sourceUrl={item.jobs?.source_url}
+                      location={item.jobs?.location_normalized}
+                      reqId={item.jobs?.req_id}
+                      postingDate={item.jobs?.posting_date}
                     />
                   </div>
                 ))}
