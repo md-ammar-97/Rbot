@@ -304,7 +304,7 @@ def discover_and_normalize_jobs(self):
     from app.integrations.wellfound_client     import fetch_jobs as wf_fetch
     from app.integrations.personio_client      import fetch_jobs as prs_fetch
     from app.integrations.reed_client          import fetch_jobs as rd_fetch
-    from app.integrations.apify_client         import fetch_indeed_jobs
+    from app.integrations.apify_client         import fetch_indeed_jobs, fetch_linkedin_jobs
 
     def _upsert_and_queue(raw_job: dict) -> None:
         result = supabase_admin.table("raw_jobs").upsert(
@@ -378,15 +378,16 @@ def discover_and_normalize_jobs(self):
         except Exception:
             continue
 
-    # ── Per-user Apify scraping ────────────────────────────────────────────────
+    # ── Per-user Apify scraping (Indeed + LinkedIn) ───────────────────────────
     users_with_apify = supabase_admin.table("profiles").select("id, apify_api_key") \
                        .not_.is_("apify_api_key", "null").execute().data or []
     for u in users_with_apify:
-        try:
-            for raw_job in fetch_indeed_jobs(u["apify_api_key"]):
-                _upsert_and_queue(raw_job)
-        except Exception:
-            continue
+        for fetcher in (fetch_indeed_jobs, fetch_linkedin_jobs):
+            try:
+                for raw_job in fetcher(u["apify_api_key"]):
+                    _upsert_and_queue(raw_job)
+            except Exception:
+                continue
 
 
 @celery_app.task(bind=True, max_retries=2)
