@@ -41,9 +41,6 @@ def fetch_indeed_jobs(api_key: str) -> Iterator[dict]:
             "source_url":      item.get("externalApplyUrl") or item.get("url", ""),
             "company_raw":     item.get("company", ""),
             "title_raw":       title,
-            "raw_title":       title,
-            "raw_description": item.get("description", ""),
-            "raw_location":    item.get("location", ""),
             "location_raw":    item.get("location", ""),
             "raw_payload":     item,
         }
