@@ -27,7 +27,7 @@ class ProfileUpdate(BaseModel):
 
 @router.patch("/")
 async def update_profile(payload: ProfileUpdate, user=Depends(get_current_user)):
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None or isinstance(v, bool)}
     if not updates:
         return {"data": {"status": "no_changes"}}
     result = supabase_admin.table("profiles").update(updates).eq("id", user.id).execute()

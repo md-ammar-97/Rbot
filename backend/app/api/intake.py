@@ -93,16 +93,17 @@ class GitHubRepoPayload(BaseModel):
 
 @router.post("/github")
 async def add_github_repo(payload: GitHubRepoPayload, user=Depends(get_current_user)):
-    # Check if already connected
-    existing = supabase_admin.table("github_repos").select("id") \
-               .eq("user_id", user.id) \
-               .eq("owner", payload.owner) \
-               .eq("repo", payload.repo).maybe_single().execute()
+    # Check if already connected — use limit(1) to avoid maybe_single() returning None
+    existing_res = supabase_admin.table("github_repos").select("id") \
+                  .eq("user_id", user.id) \
+                  .eq("owner", payload.owner) \
+                  .eq("repo", payload.repo).limit(1).execute()
+    existing = existing_res.data[0] if existing_res.data else None
 
-    if existing.data:
+    if existing:
         # Re-sync
-        ingest_github_repo.delay(existing.data["id"], user.id)
-        return {"data": {"repo_id": existing.data["id"], "status": "resync_queued"}}
+        ingest_github_repo.delay(existing["id"], user.id)
+        return {"data": {"repo_id": existing["id"], "status": "resync_queued"}}
 
     repo = supabase_admin.table("github_repos").insert({
         "user_id":    user.id,
@@ -113,6 +114,14 @@ async def add_github_repo(payload: GitHubRepoPayload, user=Depends(get_current_u
 
     ingest_github_repo.delay(repo.data[0]["id"], user.id)
     return {"data": {"repo_id": repo.data[0]["id"], "status": "ingestion_queued"}}
+
+
+@router.post("/discover")
+async def trigger_discovery(user=Depends(get_current_user)):
+    """Queue a full job discovery run. Can be called from the Settings page."""
+    from app.workers.tasks import discover_and_normalize_jobs
+    discover_and_normalize_jobs.delay()
+    return {"data": {"status": "discovery_queued"}}
 
 
 @router.get("/evidence")

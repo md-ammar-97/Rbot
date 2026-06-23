@@ -31,3 +31,26 @@ services:
       - key: PLAYWRIGHT_HEADLESS
         value: "true"
       # REDIS_URL not needed — tasks run in-process via daemon threads (see celery_app.py)
+
+  # ── Job Discovery Cron ───────────────────────────────────────────────────────
+  - type: cron
+    name: rbot-discovery-cron
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install requests
+    schedule: "0 */4 * * *"
+    startCommand: >
+      python -c "
+      import os, requests, sys;
+      r = requests.post(
+        os.environ.get('API_URL', 'https://rbot-api.onrender.com') + '/internal/discovery/run',
+        headers={'X-Internal-Key': os.environ.get('INTERNAL_API_KEY', '')},
+        timeout=10
+      );
+      print(r.status_code, r.text);
+      sys.exit(0 if r.status_code == 200 else 1)"
+    envVars:
+      - key: API_URL
+        value: https://rbot-api.onrender.com
+      - key: INTERNAL_API_KEY
+        sync: false

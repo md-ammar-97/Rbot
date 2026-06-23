@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Plus, Eye, EyeOff } from "lucide-react";
+import { X, Plus, Eye, EyeOff, RefreshCw } from "lucide-react";
 
 interface BlacklistEntry {
   id:              string;
@@ -266,6 +266,8 @@ function IntegrationsSection({ profile }: { profile: Record<string, unknown> }) 
   const [showKey,    setShowKey]    = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState(false);
+  const [fetching,   setFetching]   = useState(false);
+  const [fetchMsg,   setFetchMsg]   = useState("");
 
   const save = async () => {
     setSaving(true);
@@ -278,6 +280,28 @@ function IntegrationsSection({ profile }: { profile: Record<string, unknown> }) 
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+
+  const fetchJobs = async () => {
+    setFetching(true);
+    setFetchMsg("");
+    try {
+      const token = await getToken();
+      const resp  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/intake/discover`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        setFetchMsg("Discovery queued! Jobs will appear in 2–5 minutes.");
+      } else {
+        setFetchMsg("Failed to start discovery. Please try again.");
+      }
+    } catch {
+      setFetchMsg("Network error. Please try again.");
+    } finally {
+      setFetching(false);
+      setTimeout(() => setFetchMsg(""), 6000);
+    }
   };
 
   return (
@@ -308,6 +332,28 @@ function IntegrationsSection({ profile }: { profile: Record<string, unknown> }) 
             {saving ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : null}
             {saved ? "Saved!" : "Save"}
           </button>
+        </div>
+      </div>
+
+      <div className="border-t border-pmfit-border pt-5">
+        <label className="block text-[12px] font-semibold text-pmfit-text-secondary mb-1.5 uppercase tracking-wide">Job Discovery</label>
+        <p className="text-[12px] text-pmfit-text-muted mb-3">
+          PMFit automatically discovers new PM jobs every 4 hours. Click below to run it now — results appear on the Jobs page within a few minutes.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchJobs}
+            disabled={fetching}
+            className="btn-secondary text-[13px] h-10 px-4 flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={fetching ? "animate-spin" : ""} />
+            {fetching ? "Starting…" : "Fetch Jobs Now"}
+          </button>
+          {fetchMsg && (
+            <p className={`text-[13px] ${fetchMsg.startsWith("Discovery") ? "text-pmfit-teal" : "text-pmfit-red"}`}>
+              {fetchMsg}
+            </p>
+          )}
         </div>
       </div>
     </Section>

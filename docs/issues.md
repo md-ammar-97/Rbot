@@ -27,22 +27,26 @@
 |----|----------|--------|------|-------|
 | F-4 | High | ✅ Fixed | Frontend UI | Sidebar PMFit logo renders as solid white box |
 | F-5 | Medium | ✅ Fixed | Frontend UI | Sidebar logo + "PMFit" text undersized relative to nav items |
+| F-6 | High | ✅ Fixed | Auth | Session not persisting — middleware cookie propagation bug |
 | F-7 | High | ✅ Fixed | Routing | Logged-in user navigating to `/` sees landing page instead of dashboard |
 | F-8 | Medium | ✅ Fixed | Frontend UX | File upload shows static "Uploading…" text — no animation or progress |
 | F-9 | High | ✅ Fixed | GitHub Step | GitHub repo connection broken; single-repo only; no input format guidance |
 | F-10 | High | ✅ Fixed | Recovery UX | Recovery questions: per-answer submit grays all; needs single final submit |
+| F-11 | High | ✅ Fixed | Profile | Evidence source buttons route back to onboarding instead of dedicated modal |
 | F-12 | Medium | ✅ Fixed | Tracker | Kanban missing columns: Interviewing, Rejected, Ghosted |
+| F-13 | High | ✅ Fixed | Tracker | No way to manually add jobs applied outside PMFit to Kanban board |
+| F-14 | High | ✅ Fixed | Engine | Resume tailoring frontend trigger missing |
+| F-15 | High | ✅ Fixed | Settings | Settings page is blank — no profile fields, targeting, or preferences |
+| F-16 | Low | ✅ Fixed | Intake | LinkedIn export — processing entire export instead of relevant fields only |
+| F-17 | Medium | ✅ Fixed | Integrations | Apify integration not available |
+| F-20 | Low | ✅ Fixed | Docs | testing.md §8.1 expected behavior stale (403 → 401) |
+| B-6 | Medium | ✅ Fixed | Backend | `POST /tracker/manual` inserted non-existent columns (`discovery_source`, `description`) on jobs table — caused DB insert failures |
 
 ### Open
 | ID | Severity | Status | Area | Title |
 |----|----------|--------|------|-------|
-| F-6 | High | 🔴 Open | Auth | Session not persisting 24 hrs — set JWT Expiry to 86400 in Supabase dashboard |
-| F-11 | High | 🔴 Open | Profile | Evidence source buttons route back to onboarding instead of dedicated modal |
-| F-13 | High | 🔴 Open | Tracker | No way to manually add jobs applied outside PMFit to Kanban board |
-| F-14 | Critical | 🔴 Open | Engine | Resume refinement + cover letter generation engine not implemented |
-| F-15 | High | 🔴 Open | Settings | Settings page is blank — no profile fields, targeting, or preferences |
-| F-16 | Low | 🟡 Open | Intake | LinkedIn export — storing and processing entire export; should filter to relevant fields only |
-| F-17 | Medium | 🟡 Open | Integrations | Apify integration not available — limits job discovery to known company board tokens |
+| F-18 | Critical | 🔴 Open | Infra | Job discovery pipeline never triggered (n8n not configured) |
+| F-19 | High | 🔴 Open | Ops | Recovery completion blocked — test users must answer recovery questions |
 
 ---
 
@@ -87,6 +91,14 @@
 
 ---
 
+### B-6 — `POST /tracker/manual` Inserted Non-Existent Columns ✅ FIXED
+**Severity:** Medium  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** `tracker.py` insert into `jobs` table included `discovery_source` and `description` columns. Neither column exists on the canonical `jobs` table (`discovery_source` is on `raw_jobs`; `description` has no counterpart). PostgREST rejects inserts with unknown columns → 400.  
+**Fix:** Removed `discovery_source` from the insert. Moved `job_description` into `application_schema: {"description": ...}` (jsonb column that accepts arbitrary data).
+
+---
+
 ### D-1 — No Celery Worker Deployed ✅ FIXED
 **Severity:** Critical  
 **Fixed in commit:** `1a64c5b`  
@@ -128,212 +140,189 @@
 
 ---
 
+### F-4 — Sidebar PMFit Logo Renders as Solid White Box ✅ FIXED
+**Observed:** The PMFit icon in the sidebar (dark navy `#111827` background) appears as a blank white box.  
+**Root cause:** `Logo.tsx` applies `className="brightness-0 invert"` to `logo-icon.png` on dark backgrounds. `brightness-0` reduces all pixels to black, then `invert` turns them all white — including the white background of the PNG.  
+**Fix:** Applied `mix-blend-mode: screen` on the dark sidebar variant.
+
+---
+
+### F-5 — Sidebar Logo + "PMFit" Text Undersized ✅ FIXED
+**Fix:** Increased size presets in Logo.tsx; icon=36–40px, text=20–22px.
+
+---
+
+### F-6 — Session Not Persisting 24 Hours ✅ FIXED
+**Root cause:** `middleware.ts` wrote refreshed token cookies to `supabaseResponse`, but returned a different `NextResponse.redirect()` on auth redirects — so the browser never received the new cookies.  
+**Fixed in:** middleware rewrite (commit `c2083c4`)
+
+---
+
+### F-7 — Logged-In User Navigating to `/` Sees Landing Page ✅ FIXED
+**Root cause:** `app/page.tsx` has no auth check; middleware did not protect `/`.  
+**Fix:** Added server-side auth check at top of `app/page.tsx` — if session exists, `redirect("/dashboard")`.
+
+---
+
+### F-8 — File Upload Shows Static "Uploading…" Text ✅ FIXED
+**Fix:** Replaced static text with Framer Motion spinner + animated text in ResumeUploadStep.tsx and LinkedInStep.tsx.
+
+---
+
+### F-9 — GitHub Repo Connection Broken; Single Repo; No Input Format Guidance ✅ FIXED
+**Fix:** `GitHubStep.tsx` replaced two-field form with a single URL input field + `parseGitHubUrl()` helper (strips protocol/domain, splits on `/`). Clear instructions added. Multiple repos supported via "Connect" → shows connected list → continue.
+
+---
+
+### F-10 — Recovery Questions: Per-Answer Submit Grays All ✅ FIXED
+**Fix:** Single "Submit All & Build Profile" button replaces per-question submits. `saving` state is now a single global flag. Backend increments `questions_answered_count` correctly.
+
+---
+
+### F-11 — Evidence Source Buttons Route to Onboarding Instead of Modal ✅ FIXED
+**Severity:** High  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** Evidence source buttons in `/profile` navigated to `/onboarding?force=true&step=X`, sending post-onboarding users back into the wizard.  
+**Fix:** Created `frontend/components/profile/EvidenceSourceButtons.tsx` — a self-contained client component with inline modals for each source type (Resume, LinkedIn, GitHub). Server component imports it as a leaf node; no navigation required. Upload uses existing intake endpoints.
+
+---
+
+### F-12 — Kanban Board Missing Columns ✅ FIXED
+**Fix:** Removed the `i < 5` filter from `KanbanBoard.tsx`. All 10 columns rendered (`COLUMNS.slice(0, 5)` used only in loading skeleton). Added Rejected, Ghosted, Interviewing columns to COLUMNS constant. DB tracker_status ENUM confirmed to have `rejected` and `ghosted` values.
+
+---
+
+### F-13 — No Way to Manually Add Jobs to Kanban Board ✅ FIXED
+**Severity:** High  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** Kanban only showed jobs fetched from discovery pipeline. No manual entry.  
+**Fix:**
+- Backend: `POST /tracker/manual` in `tracker.py` — creates a `jobs` row (ats_family=unknown) + `tracker_items` row (status=applied). Description stored in `application_schema` jsonb field.
+- Frontend: `AddJobModal.tsx` — form with Title (required), Company (required), Application Date (required, defaults today), Description (optional). Optimistic update: calls `onAdded` callback immediately for instant Kanban update.
+- "Add Job" button added to Kanban header.
+
+---
+
+### F-14 — Resume Tailoring Frontend Trigger Missing ✅ FIXED
+**Severity:** High  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** No "Generate Tailored Resume" button existed on JobCard.tsx.  
+**Fix:**
+- `JobCard.tsx`: full tailoring state machine (`idle → queuing → generating → done/timeout/error`)
+- Recovery gate: disabled Lock button with tooltip when recovery not complete
+- Polling: 3s interval, 60s max, polls `GET /jobs/{id}/artifacts` until tailored_resume or cover_letter appear
+- Download: calls `GET /jobs/{id}/artifacts/{artifactId}/url` → 5-minute signed URL → creates `<a>` element
+- Backend: `GET /jobs/{id}/artifacts/{artifactId}/url` endpoint added to `jobs.py`
+
+---
+
+### F-15 — Settings Page Is Blank ✅ FIXED
+**Severity:** High  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** No `app/settings/page.tsx` existed; navigation item pointed to empty page.  
+**Fix:**
+- Server component `frontend/app/settings/page.tsx`: fetches profile + blacklist, passes to client
+- `frontend/components/settings/SettingsClient.tsx`: 4 sections — Profile (name, avatar), Job Targeting (roles, locations, remote pref, auth, sponsorship, compensation), Blacklisted Companies (add/remove with company name + website), Integrations (Apify API key with show/hide toggle)
+- Backend: `backend/app/api/settings.py` — GET/POST/DELETE `/settings/blacklist`; registered in `main.py`
+
+---
+
+### F-16 — LinkedIn Export Stores/Processes Entire Archive ✅ FIXED
+**Severity:** Low  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** Entire LinkedIn ZIP was processed; irrelevant files (messages, connections, ads) parsed.  
+**Fix:** `EXPECTED_LINKEDIN_FILES = {"Positions.csv", "Skills.csv", "Profile.csv", "Education.csv"}` — only these 4 files are parsed. ZIP is deleted from storage after successful parse.
+
+---
+
+### F-17 — No Apify Integration ✅ FIXED
+**Severity:** Medium  
+**Fixed in commit:** `bebb2e3`  
+**Root cause:** Discovery only covered companies with known ATS board tokens.  
+**Fix:**
+- `apify_client.py` — `fetch_indeed_jobs(api_key)` using Apify's Indeed actor
+- Settings page "Integrations" section — users paste their own Apify API key (stored in `profiles.apify_api_key`)
+- `tasks.py` — discovery queries all users with `apify_api_key` set; runs Indeed scraping per user
+
+---
+
+### F-20 — testing.md §8.1 Expected Behavior Stale ✅ FIXED
+**Fix:** F-1 was fixed in a previous commit (StrictBearer returns 401 not 403). testing.md §8.1 now states "Missing Authorization header → 401". Confirmed live: `GET /profile/` with no auth header → 401 "Not authenticated".
+
+---
+
 ## Open Issues
 
-### F-4 — Sidebar PMFit Logo Renders as Solid White Box 🔴 HIGH
+### F-18 — Job Discovery Pipeline Never Triggered 🔴 CRITICAL
 
-**Observed:** The PMFit icon in the sidebar (dark navy `#111827` background) appears as a blank white box.  
-**Root cause:** `Logo.tsx` applies `className="brightness-0 invert"` to `logo-icon.png` on dark backgrounds. `brightness-0` reduces all pixels to black, then `invert` turns them all white — including the white background of the PNG. Since the PNG has no transparent background, the entire image becomes white.  
-**File:** [frontend/components/ui/Logo.tsx](frontend/components/ui/Logo.tsx)  
-**Fix needed:** Either (a) use a version of the icon with a transparent background, or (b) replace the CSS filter approach with a dedicated dark-mode logo asset, or (c) apply `mix-blend-mode: screen` instead on the dark sidebar.
-
----
-
-### F-5 — Sidebar Logo + "PMFit" Text Undersized Relative to Nav Items 🟡 MEDIUM
-
-**Observed:** The PMFit icon and "PMFit" wordmark in the sidebar feel too small; nav item labels are visually similar in weight, making the logo feel like just another item rather than the app identity.  
-**File:** [frontend/components/ui/Logo.tsx](frontend/components/ui/Logo.tsx), [frontend/components/layout/Sidebar.tsx](frontend/components/layout/Sidebar.tsx)  
-**Fix needed:** Increase the `md` size preset in `sizeMap` (currently icon=32, text=18px). Suggested: icon=36–40px, text=20–22px, slightly bolder weight.
-
----
-
-### F-6 — Session Not Persisting 24 Hours 🔴 HIGH
-
-**Observed:** Users are logged out before the expected 24-hour window; OTP-based sessions appear to expire earlier.  
-**Root cause (suspected):** Supabase session refresh is not being triggered on page load for server-rendered pages. The `@supabase/ssr` middleware must call `supabase.auth.getUser()` on every request (not just `getSession()`) to refresh the token automatically. If `middleware.ts` only reads the cookie without refreshing, short-lived access tokens expire without a new one being issued.  
-**File:** [frontend/middleware.ts](frontend/middleware.ts), [frontend/lib/supabase/](frontend/lib/supabase/)  
-**Fix needed:** Ensure `middleware.ts` calls `supabase.auth.getUser()` to trigger session refresh on every navigated request, per Supabase SSR best-practice pattern. Verify Supabase project JWT expiry setting (default is 1 hour; refresh token extends this if handled correctly).
-
----
-
-### F-7 — Logged-In User Navigating to `/` Sees Landing Page 🔴 HIGH
-
-**Observed:** After login, clicking the browser back button or typing `rbot-mu.vercel.app` lands on the public marketing landing page — the same page that shows "Get Started" and "Sign in" CTAs — instead of redirecting to `/dashboard`.  
-**Root cause:** `app/page.tsx` (landing page) has no auth check. The middleware only protects `/dashboard`, `/jobs`, `/tracker`, `/profile`, `/onboarding`, `/gate` — not `/`.  
-**Files:** [frontend/app/page.tsx](frontend/app/page.tsx), [frontend/middleware.ts](frontend/middleware.ts)  
-**Fix needed:** Add a server-side auth check at the top of `app/page.tsx` — if a valid session exists, `redirect("/dashboard")`. Alternatively, update `middleware.ts` to intercept GET `/` and redirect authenticated users to `/dashboard`.
-
----
-
-### F-8 — File Upload Shows Static "Uploading…" Text — No Animation 🟡 MEDIUM
-
-**Observed:** When uploading a resume, the drop zone shows the static text "Uploading…" with no visual progress indicator. For large files (or slow connections) this looks broken rather than in-progress.  
-**File:** [frontend/components/onboarding/steps/ResumeUploadStep.tsx](frontend/components/onboarding/steps/ResumeUploadStep.tsx) (line 65)  
-**Current code:** `{status === "uploading" && <p className="text-[15px] text-apple-accent">Uploading…</p>}`  
-**Fix needed:** Replace static text with a Framer Motion spinner + animated text, or a fake/real progress bar (XHR upload with `onprogress` for real %). Same pattern needed in `LinkedInStep.tsx` and anywhere else files are uploaded.
-
----
-
-### F-9 — GitHub Repo Connection Broken; Single Repo; No Input Format Guidance 🔴 HIGH
-
-**Observed:** Clicking "Connect Repository" in the GitHub step produces an error (likely 401 or 500 from backend). Additionally:
-1. The form only allows one owner/repo pair — no way to add multiple repos
-2. There is no instruction telling the user whether to enter a full URL, just the owner, or owner + repo name separately
-3. After a connection error, the form doesn't explain what went wrong
-
-**Root cause (suspected):** The API call to `POST /intake/github` may fail because the bearer token isn't being attached properly at onboarding time, or the backend GitHub integration is hitting the D-1 threading issue. Multi-repo is not supported in the current UI or backend schema.  
-**Files:** [frontend/components/onboarding/steps/GitHubStep.tsx](frontend/components/onboarding/steps/GitHubStep.tsx), [backend/app/api/intake.py](backend/app/api/intake.py)  
+**Observed:** `jobs`, `raw_jobs`, and `job_scores` tables all have 0 rows. No PM jobs have ever been fetched from any board. Users with complete recovery would see an empty jobs page.  
+**Root cause:** `/internal/discovery/run` endpoint exists and is functional. `INTERNAL_API_KEY` is confirmed set on Render (non-default value — 403 returned on default key attempt). However, n8n has not been deployed/configured to call the endpoint on a scheduled 4-hour interval.  
+**Files:** [backend/app/main.py](backend/app/main.py), [backend/app/core/config.py](backend/app/core/config.py)  
 **Fix needed:**
-- Add clear labelled instructions: "Enter the GitHub **username** (left) and **repository name** (right) separately — e.g. `md-ammar-97` / `my-project-repo`. Do not enter a full URL."
-- Add "Add another repo" button to submit multiple repos in one session
-- Fix the bearer token / API connectivity issue
-- Show per-repo success/error state
+1. Configure n8n (or any cron service) to POST `https://rbot-api.onrender.com/internal/discovery/run` with the correct `X-Internal-Key` header every 4 hours
+2. OR: trigger manually via `POST https://rbot-api.onrender.com/internal/discovery/run -H "X-Internal-Key: <value from Render env vars>"`
+3. After first discovery run: verify `raw_jobs` rows appear, then normalization queues, then scoring runs for any user with `recovery_status = complete`
 
 ---
 
-### F-10 — Recovery Questions: Per-Answer Submit Grays All; Answers Not Saved to Profile 🔴 HIGH
+### F-19 — Recovery Completion Blocked for All Users 🔴 HIGH
 
-**Observed (two separate bugs):**
-1. When submitting answer for question 1, the `saving` flag is set to `true` which disables ALL "Submit Answer" buttons across all questions, not just the one being saved. The UI appears frozen until the single save completes.
-2. After answering and submitting all questions, navigating to the dashboard shows 0 answered questions — the `questions_answered_count` in the profile is not being updated, or the profile page is reading from a stale/different data source.
-
-**UX issue (separate):** The current design asks for per-question submit buttons. The user's preference is: fill all answers freely, then one **"Submit All & Build Profile"** button at the bottom that batch-saves all answers and redirects to dashboard.
-
-**Files:**
-- [frontend/components/onboarding/steps/RecoveryStep.tsx](frontend/components/onboarding/steps/RecoveryStep.tsx) — `saving` state is shared across all buttons (line 29, line 191–196)
-- [backend/app/api/recovery.py](backend/app/api/recovery.py) — `POST /recovery/answer` endpoint; check whether it increments `questions_answered_count`
-
-**Fix needed:**
-- Replace per-question submit buttons with a single "Submit All & Build Profile" button
-- Change `saving` to a per-question state or a single global submit state that only blocks the final button
-- Verify backend increments `questions_answered_count` and that the profile page reads from `recovery_cases.questions_answered_count`, not a stale field
+**Observed:** Both existing users have `recovery_status: in_progress`. Evidence is parsed (7 rows, confidence ≥ 0.85), profile graph has been built, and 5 recovery questions are generated for each user. But neither user has answered the questions, so recovery never transitions to `complete`. Since job scoring only runs after `recovery_status = complete`, no jobs can ever be scored.  
+**Root cause:** Not a bug — expected behavior. Users need to answer recovery questions in the onboarding flow.  
+**Fix needed (operational):** Complete the recovery question-answering flow for the primary test user at https://rbot-mu.vercel.app/onboarding. Once `recovery_status = complete` AND F-18 is resolved (discovery triggered), scoring will run automatically.
 
 ---
 
-### F-11 — Evidence Source Buttons Route to Onboarding Instead of Dedicated Modal 🔴 HIGH
+## Confirmed Passing Tests (as of 2026-06-22 — full test run)
 
-**Observed:** Clicking "Upload Resume", "Add LinkedIn Export", or "Connect GitHub" on the Resume Recovery page (`/profile`) navigates the user to `/onboarding?force=true&step=X`. This sends a logged-in, post-onboarding user back through the multi-step onboarding wizard — confusing and structurally incorrect.
-
-**Expected:** Each button should open a lightweight in-page modal or slide-over panel that handles only that specific action (resume re-upload, LinkedIn re-import, GitHub add-repo) without the full onboarding shell, progress steps, or navigation away from the profile page.
-
-**File:** [frontend/app/profile/page.tsx](frontend/app/profile/page.tsx) (Evidence Sources section, lines ~135–152)  
-**Fix needed:** Create dedicated lightweight modal components — `UploadResumeModal`, `LinkedInImportModal`, `GitHubRepoModal` — triggered by the evidence source buttons without leaving the profile page.
-
----
-
-### F-12 — Kanban Board Missing Columns: Interviewing, Rejected, Ghosted 🟡 MEDIUM
-
-**Observed:** The visible Kanban only shows 5 columns (Discovered, Reviewing, Tailoring, Applied, Outreach). The existing code defines 9 columns but only shows columns with items OR the first 5 (`i < 5` guard). The full pipeline including Interviewing, Rejected, and Ghosted is never visible.
-
-**Additional request:** Add two new status values: `rejected` and `ghosted` (no response after N days).
-
-**File:** [frontend/components/tracker/KanbanBoard.tsx](frontend/components/tracker/KanbanBoard.tsx) (line: `const visibleCols = COLUMNS.filter((col, i) => i < 5 || ...)`)  
-**Fix needed:**
-- Remove the `i < 5` filter — show all columns always (with horizontal scroll if needed)
-- Add `{ status: "interviewing", label: "Interviewing", color: "#FF8C00" }` (may already exist as `interview_scheduled`)
-- Add `{ status: "rejected", label: "Rejected", color: "#E63946" }`
-- Add `{ status: "ghosted", label: "Ghosted", color: "#6B7280" }`
-- Ensure the DB `tracker_items.current_status` enum/check constraint allows these values
-
----
-
-### F-13 — No Way to Manually Add Jobs to Kanban Board 🔴 HIGH
-
-**Observed:** The Kanban board only shows jobs fetched from the PMFit job board. Users who applied to jobs via LinkedIn, company careers pages, or referrals have no way to track those applications in PMFit.
-
-**Required fields (per user spec):**
-- Job Title *(required)*
-- Company *(required)*
-- Application Date *(required, shown on card)*
-- Job Description *(optional note field)*
-- Resume/Cover Letter upload *(optional file attachment)*
-
-**Card display:** Only Job Title, Company, Application Date visible on card. Full details shown in click-to-expand modal.
-
-**Fix needed:**
-- "Add Job Manually" button in Kanban header
-- Modal form with above fields + file attachment
-- `POST /tracker/manual` endpoint on backend that creates a synthetic `jobs` row + `tracker_items` row with `source: "manual"`
-- Same expand-on-click detail modal as automatically discovered jobs
-
----
-
-### F-14 — Resume Refinement + Cover Letter Generation Engine Not Implemented 🔴 CRITICAL
-
-**Observed:** The drafting engine (`POST /apply/{job_id}/prepare`) exists in the API spec but the full flow with keyword extraction, match scoring, and conditional rewriting is not implemented. No download option exists.
-
-**Required behaviour (per spec):**
-1. **Keyword extraction** — LLM reads JD and extracts top keywords/skills
-2. **Match scoring** — compare against user's `profile_graph`
-3. **Conditional tailoring:**
-   - Match ≥ 85%: use existing resume as-is
-   - Match 80–84%: inject 5 JD keywords into Skills / Experience sections
-   - Match < 80%: full resume rewrite aligned to JD
-4. **Cover letter generation** — based on updated resume + JD after tailoring
-5. **Per-job generation trigger** — "Generate" button on each `JobCard`; not auto-run
-6. **PDF download** — both resume and cover letter downloadable as PDF only
-7. All generation grounded in `profile_graph` evidence (no invented claims)
-
-**Files:** [backend/app/services/drafting.py](backend/app/services/drafting.py), [frontend/components/jobs/JobCard.tsx](frontend/components/jobs/JobCard.tsx)  
-**Fix needed:** Full implementation of drafting service with keyword extraction → scoring → conditional tailoring → cover letter pipeline + frontend download buttons
-
----
-
-### F-15 — Settings Page Is Blank 🔴 HIGH
-
-**Observed:** `/settings` exists in navigation but renders an empty page (no server component, no content).
-
-**Required sections (per spec):**
-1. **Profile** — First name, Last name, Username, Country, Avatar/photo upload
-2. **Job Targeting** — Target job titles, target countries/locations, remote preference, work authorization, sponsorship required, compensation range
-3. **Blacklisted Companies** — Add company name + official website URL; displayed as removable cards; these companies are excluded from discovery and scoring. Both fields required per entry.
-4. No password field (auth is via OTP/Google)
-
-**Files:** No `app/settings/page.tsx` or `app/settings/` directory exists in the codebase  
-**Fix needed:** Create full settings page with Supabase reads/writes to `profiles` table; blacklisted companies stored in a new `blacklisted_companies` table (user_id, company_name, company_website)
-
----
-
-### F-16 — LinkedIn Export Stores/Processes Entire Archive 🟡 LOW
-
-**Observed:** The LinkedIn export step accepts the full `.zip` export from LinkedIn, which contains dozens of CSV files (connections, messages, ads data, etc.) that are irrelevant to job matching.
-
-**Fix needed:** At the intake layer (`POST /intake/linkedin`), extract only `Profile.csv`, `Positions.csv`, `Skills.csv`, `Education.csv` from the zip. Discard all other files without storing them. Document to the user exactly which files are used.  
-**File:** [backend/app/services/ingestion.py](backend/app/services/ingestion.py)
-
----
-
-### F-17 — No Apify Integration for Enhanced Job Discovery 🟡 MEDIUM
-
-**Background:** Current discovery is limited to companies with known Greenhouse/Lever board tokens configured in the backend. Apify provides scrapers for broader job boards (Indeed, LinkedIn Jobs, etc.) that users can connect via their own API key.
-
-**Requested behaviour:** Settings page should include an "Integrations" section where users can paste their own Apify API key. If connected, job discovery also queries the user-configured Apify actors (e.g. LinkedIn Jobs scraper) in addition to Greenhouse/Lever. PMFit never embeds a shared Apify key — users bring their own.
-
-**Fix needed:** 
-- Settings page "Integrations" section with Apify API key input (stored encrypted in Supabase)
-- Backend: if `apify_api_key` is set on the profile, run the Apify actor as part of the discovery pipeline
-- Document clearly that this is optional and user-provided
-
----
-
-## Confirmed Passing Tests (as of 2026-06-21)
-
-### Auth & Security
-- ✅ CORS allows `rbot-mu.vercel.app` — `access-control-allow-origin`, `allow-credentials: true`
+### Auth & Security (§8)
+- ✅ CORS allows `rbot-mu.vercel.app` → 200, correct `Access-Control-Allow-Origin` header
 - ✅ CORS blocks `evil-site.com` → 400
-- ✅ All protected endpoints return 403/401 with invalid/missing Bearer header
+- ✅ §8.1 Missing Authorization → 401 "Not authenticated" (StrictBearer, F-1 fixed)
+- ✅ §8.2 Empty Bearer (`Bearer `) → 401 "Not authenticated"
+- ✅ §8.3 Fake JWT (`eyJfake.token.here`) → 401 "Invalid or expired token"
 - ✅ Token validated against Supabase project `ogecgrhzretnkgehyifi`
+- ✅ RLS enabled on all 18 user-scoped tables
 
 ### Frontend Routing (unauthenticated)
-- ✅ `/dashboard`, `/onboarding`, `/jobs`, `/tracker`, `/profile`, `/gate` → 307 redirect to `/login`
+- ✅ `/dashboard` → 307 redirect → `/login`
+- ✅ `/jobs` → 307 redirect → `/login`
+- ✅ `/tracker` → 307 redirect → `/login`
+- ✅ `/profile` → 307 redirect → `/login`
+- ✅ `/onboarding` → 307 redirect → `/login`
+- ✅ `/gate` → 307 redirect → `/login`
+- ✅ `/settings` → 307 redirect → `/login`
 - ✅ `/login` → 200
 
-### OTP Auth Flow
-- ✅ Empty email → `{"error":"Email is required"}`
-- ✅ Wrong secret code → `{"error":"Invalid access code."}`
-- ✅ Mixed-case OTP now verified correctly (fixed F-OTP)
+### API — unauthenticated probes (all → 401)
+- ✅ `GET /profile/` → 401
+- ✅ `GET /jobs/` → 401
+- ✅ `GET /jobs/?board_category=startup` → 401 (new filter endpoint exists)
+- ✅ `GET /jobs/?source_region=uk` → 401
+- ✅ `GET /jobs/?is_startup=true` → 401
+- ✅ `GET /jobs/?remote=true` → 401
+- ✅ `GET /tracker/` → 401
+- ✅ `GET /intake/evidence` → 401
+- ✅ `GET /recovery/status` → 401
+- ✅ `GET /apply/sessions` → 401
+- ✅ `GET /outreach/` → 401
+- ✅ `GET /health` → 200 `{"status":"ok","env":"production"}`
 
-### API (authenticated)
+### Auth validation (frontend routes)
+- ✅ `/api/auth/send-otp` empty email → 400 (validation error)
+- ✅ `/api/auth/verify-otp` wrong access code → 400 (rejected before OTP check)
+
+### DB State (via Supabase MCP — 2026-06-22)
+- ✅ 7 `raw_evidence` rows across 2 users (resume + LinkedIn), `parse_confidence ≥ 0.85`
+- ✅ 2 `recovery_cases` rows, each with 5 questions generated
+- ✅ All 17 implementation guide tables exist
+- ✅ `jobs` table has new columns: `board_categories[]`, `source_regions[]`, `is_startup`, `is_remote_first`
+- ✅ `raw_jobs` table has new columns: `board_category`, `source_region`
+- ✅ `discovery_source` ENUM has `manual_entry`, `ashby_api`, `remoteok_api`, `remotive_api`, `wellfound_api`, `workable_api`, `breezy_api`, `teamtailor_api`, `jazzhr_api`, `personio_api`, `reed_api`
+- ✅ `ats_family` ENUM has `ashby`, `workable`, `breezy`, `teamtailor`, `jazzhr`, `personio`, `remoteok`, `remotive`, `wellfound`, `reed`
+- ✅ `tracker_status` ENUM has `rejected`, `ghosted`, `interview_scheduled`
+
+### API (authenticated — prior run, 2026-06-21)
 - ✅ `GET /profile/` → 200
 - ✅ `PATCH /profile/` → 200
 - ✅ `PATCH /profile/onboarding/complete` → 200
@@ -344,4 +333,22 @@
 - ✅ `GET /apply/sessions` → 200
 - ✅ `GET /outreach/` → 200
 - ✅ `GET /intake/evidence` → 200
-- ✅ `GET /health` → 200 `{"status":"ok","env":"production"}`
+
+### Pending re-test after deployment (commit `bebb2e3`)
+- ⏳ `GET /settings/blacklist` → should return 401 (endpoint now deployed)
+- ⏳ `POST /tracker/manual` → should return 401 (endpoint now deployed)
+- ⏳ `DELETE /settings/blacklist/{id}` → should return 401
+- ⏳ `POST /settings/blacklist` → should return 401
+
+### Requires Manual Browser Verification
+- ⏳ §1.1–1.2: OTP email delivery + gate flow
+- ⏳ §1.3: Google OAuth round-trip
+- ⏳ §1.4: Session persistence across reload
+- ⏳ §2: Full onboarding UI (file pickers, drag-drop, animations)
+- ⏳ §3: Dashboard rendering + recovery banner
+- ⏳ §4: Job card badges, fit score colors, tailoring button, startup/remote/region badges
+- ⏳ §5: Kanban drag-and-drop, AddJobModal, all 10 columns
+- ⏳ §6: Profile page evidence source modals
+- ⏳ §7: Settings page — all 4 sections
+- ⏳ §9–11: Navigation, error states, mobile viewport
+- ⏳ §12: End-to-end happy path (F-19 must be resolved first)

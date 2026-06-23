@@ -167,6 +167,16 @@
 | 4.2.2 | Min Fit Score 0 | Select 0+ | All scored jobs returned |
 | 4.2.3 | Min Fit Score 80 | Select 80+ | Only high-fit jobs shown |
 | 4.2.4 | Filter change triggers re-fetch | Change dropdown value | `useEffect` dependency on `minFit` triggers new API call |
+| 4.2.5 | Filters panel hidden by default | Load `/jobs` | Filters button visible; Remote/Startup/Region/Board controls hidden |
+| 4.2.6 | Expand filters panel | Click "Filters" button | Remote Only toggle, Startup toggle, Region select, Board Type select appear |
+| 4.2.7 | Remote Only toggle | Click "Remote Only" | Button turns teal/active; API called with `remote=true`; only remote-eligible jobs shown |
+| 4.2.8 | Startup toggle | Click "Startup" | Button turns blue/active; API called with `is_startup=true`; only startup-sourced jobs |
+| 4.2.9 | Region filter | Select "United Kingdom" | API called with `source_region=uk`; jobs from UK boards shown |
+| 4.2.10 | Board Type filter | Select "Remote-First" | API called with `board_category=remote_first`; only remoteok/remotive jobs |
+| 4.2.11 | Combined filters | Remote Only + Region=UK | `remote=true&source_region=uk` params sent; both filters applied |
+| 4.2.12 | Clear filter | Deselect Remote Only | Button returns to inactive style; API refetches without `remote` param |
+| 4.2.13 | Empty results after filter | Overly restrictive combination | "No matching roles found" empty state shown |
+| 4.2.14 | Search box client-side filter | Type "product" in search | Only jobs with "product" in title or company shown; no API call |
 
 ### 4.3 Tailoring
 
@@ -177,6 +187,16 @@
 | 4.3.3 | Tailoring gate — no baseline | Recovery complete but no baseline artifact | API returns `{ error: "No baseline resume found. Complete recovery first." }` |
 | 4.3.4 | Tailoring success | Recovery complete + baseline exists | `generate_tailored_draft` and `generate_cover_letter_draft` tasks queued, alert shown |
 | 4.3.5 | Unauthenticated jobs fetch | Remove session, reload page | No jobs loaded (API returns 401), no crash |
+| 4.3.6 | Tailoring button — Lock when no recovery | `recovery_status != complete` | "Generate Tailored Resume" shows Lock icon, is disabled; tooltip "Complete resume recovery first" on hover |
+| 4.3.7 | Tailoring — queuing state | Click button (recovery complete) | Button shows spinner + "Queuing…" text, disabled |
+| 4.3.8 | Tailoring — generating state | POST succeeds | Button transitions to "Generating…" with spinner; polling starts at 3s intervals |
+| 4.3.9 | Tailoring — done state | Artifact appears in poll | Download buttons for "Tailored Resume" and "Cover Letter" appear |
+| 4.3.10 | Tailoring — timeout state | 60s elapsed, no artifact | "Still generating — retry" button shown |
+| 4.3.11 | Artifact download | Click "Tailored Resume" download | GET `/jobs/{id}/artifacts/{id}/url` called; signed URL fetched; file download triggered |
+| 4.3.12 | Score breakdown expand | Click "Score breakdown" chevron | Animated panel reveals bar chart with score components |
+| 4.3.13 | Category badges — startup job | `is_startup=true` | "Startup" badge (badge-blue) shown below seniority badge |
+| 4.3.14 | Category badges — remote-first job | `is_remote_first=true` | "Remote-First" badge (badge-teal) shown |
+| 4.3.15 | Region badge — UK/EU/India job | `source_regions` contains `uk`/`eu`/`india` | Region badge in badge-gray shown; global/us regions suppressed |
 
 ---
 
@@ -187,7 +207,7 @@
 | # | Test Case | Steps | Expected Result |
 |---|-----------|-------|-----------------|
 | 5.1.1 | Load tracker | Navigate to `/tracker` | GET `/tracker/` called, kanban columns rendered |
-| 5.1.2 | Seven columns rendered | Inspect board | Columns: Saved, Applied, Phone Screen, Interview, Offer, Rejected, Withdrawn |
+| 5.1.2 | Ten columns rendered | Inspect board | Columns: Saved, Applied, Phone Screen, Interview, Offer, Rejected, Withdrawn, Ghosted, Interviewing, + any others in COLUMNS |
 | 5.1.3 | Items in correct columns | Tracker items with various statuses | Each item appears under its `current_status` column |
 | 5.1.4 | Empty column placeholder | Column with no items | Dashed border placeholder "Empty" shown |
 | 5.1.5 | Item count badges | Column headers | Badge shows count of items in each column |
@@ -197,14 +217,28 @@
 | 5.1.9 | Fit score badge in card | Item with `job_scores` | `FitScoreBadge` rendered inside card |
 | 5.1.10 | Null job_scores | Item with no score | Score badge not rendered, no crash |
 
-### 5.2 Status Updates
+### 5.2 Manual Job Addition (AddJobModal)
 
 | # | Test Case | Steps | Expected Result |
 |---|-----------|-------|-----------------|
-| 5.2.1 | Change status via dropdown | Select "Interview" from dropdown on "Applied" card | PATCH `/tracker/{item_id}/status` with `new_status=interview`, card moves immediately (optimistic update) |
-| 5.2.2 | All status options | Open dropdown | All 7 statuses listed as options |
-| 5.2.3 | Ownership check | API called with another user's `item_id` | HTTP 403 "Item not found or access denied." |
-| 5.2.4 | Unauthenticated status update | No session, trigger status change | HTTP 401 |
+| 5.2.1 | "Add Job" button present | Load `/tracker` | "+ Add Job" button visible in Kanban board header |
+| 5.2.2 | Open modal | Click "+ Add Job" | Modal overlay opens with form fields |
+| 5.2.3 | Form fields | Inspect modal | Title (required), Company (required), Application Date (date picker, defaults to today), Description (textarea, optional) |
+| 5.2.4 | Submit empty form | Click "Add to Tracker" with no title | Validation prevents submit, required fields highlighted |
+| 5.2.5 | Successful add | Fill Title + Company + Date, submit | POST `/tracker/manual` called; modal closes; new card appears in "Applied" column |
+| 5.2.6 | Added card content | Inspect new card | Shows Title + Company; no fit score badge (manually added, no score) |
+| 5.2.7 | Cancel modal | Click X or outside overlay | Modal closes, no submit |
+| 5.2.8 | API gate — no auth | POST `/tracker/manual` with no token | 401 |
+| 5.2.9 | API — missing required fields | POST without `title` | 422 FastAPI validation error |
+
+### 5.3 Status Updates
+
+| # | Test Case | Steps | Expected Result |
+|---|-----------|-------|-----------------|
+| 5.3.1 | Change status via dropdown | Select "Interview" from dropdown on "Applied" card | PATCH `/tracker/{item_id}/status` with `new_status=interview`, card moves immediately (optimistic update) |
+| 5.3.2 | All status options | Open dropdown | All 7 statuses listed as options |
+| 5.3.3 | Ownership check | API called with another user's `item_id` | HTTP 403 "Item not found or access denied." |
+| 5.3.4 | Unauthenticated status update | No session, trigger status change | HTTP 401 |
 
 ---
 
@@ -222,7 +256,11 @@
 | 6.8 | Evidence list — populated | User has resume + LinkedIn evidence | Both rows shown with label, type, date, confidence % |
 | 6.9 | Evidence list — empty | No evidence uploaded | "No evidence uploaded yet." message |
 | 6.10 | Evidence confidence colors | `parse_confidence >= 0.8` vs `< 0.8` | Green vs yellow badge |
-| 6.11 | "Add more evidence" link | Click "+ Add more evidence" | Navigates to `/onboarding` |
+| 6.11 | Evidence source buttons | Click "Upload Resume" / "Connect LinkedIn" / "Connect GitHub" | Inline modal opens (does NOT navigate away to onboarding) |
+| 6.11a | Resume upload modal | Click "Upload Resume" | File picker modal opens; upload calls `POST /intake/resume`; success closes modal |
+| 6.11b | LinkedIn upload modal | Click "Connect LinkedIn" | ZIP drag-drop modal opens; upload calls `POST /intake/linkedin`; success closes modal |
+| 6.11c | GitHub connect modal | Click "Connect GitHub" | URL input modal opens; connect calls `POST /intake/github`; success closes modal |
+| 6.11d | Modal dismiss | Click X or outside modal | Modal closes, no navigation, profile page stays visible |
 | 6.12 | Job preferences — all set | Profile has all preferences filled | All 6 pairs displayed: roles, locations, remote, auth, sponsorship, auto-apply |
 | 6.13 | Job preferences — default | Profile with no preferences | "Not set" shown for each field, no crash |
 | 6.14 | Unauthenticated | Visit `/profile` without session | Redirects to `/login` |
@@ -267,10 +305,19 @@ Run all of the following with a valid Bearer token. Unless noted, also test each
 | 7.3.2 | `/jobs/` | GET | `min_fit=70` | Only jobs with `fit_score >= 70` |
 | 7.3.3 | `/jobs/` | GET | `eligibility=eligible` | Only eligible jobs |
 | 7.3.4 | `/jobs/` | GET | `limit=5` | Max 5 jobs returned |
-| 7.3.5 | `/jobs/{id}` | GET | Valid job_id | 200 with job + user's score |
-| 7.3.6 | `/jobs/{id}/tailor` | POST | Recovery not complete | `{ error: "Resume Quality Recovery must complete..." }` |
-| 7.3.7 | `/jobs/{id}/tailor` | POST | Recovery complete | 200 `{ status: "tailoring_queued" }` |
-| 7.3.8 | `/jobs/{id}/artifacts` | GET | After tailoring | List of artifacts (tailored resume, cover letter) |
+| 7.3.5 | `/jobs/` | GET | `is_startup=true` | Two-step array filter applied; only jobs with `is_startup=true` in DB |
+| 7.3.6 | `/jobs/` | GET | `remote=true` | Only jobs with `remote_eligible=true` |
+| 7.3.7 | `/jobs/` | GET | `board_category=remote_first` | `board_categories` array contains "remote_first" |
+| 7.3.8 | `/jobs/` | GET | `source_region=uk` | `source_regions` array contains "uk" |
+| 7.3.9 | `/jobs/` | GET | `board_category=nordic` | Nordic-sourced jobs only |
+| 7.3.10 | `/jobs/` | GET | No matching jobs after filter | `{ data: [], total: 0 }` |
+| 7.3.11 | `/jobs/{id}` | GET | Valid job_id | 200 with job + user's score |
+| 7.3.12 | `/jobs/{id}` | GET | Invalid UUID | 404 "Job not found." |
+| 7.3.13 | `/jobs/{id}/tailor` | POST | Recovery not complete | `{ error: "Resume Quality Recovery must complete..." }` |
+| 7.3.14 | `/jobs/{id}/tailor` | POST | Recovery complete | 200 `{ status: "tailoring_queued" }` |
+| 7.3.15 | `/jobs/{id}/artifacts` | GET | After tailoring | List of artifacts (tailored resume, cover letter) |
+| 7.3.16 | `/jobs/{id}/artifacts/{aid}/url` | GET | Valid artifact | 200 with signed URL (5-min TTL) |
+| 7.3.17 | `/jobs/{id}/artifacts/{aid}/url` | GET | Another user's artifact | 403 "Artifact not found or access denied." |
 
 ### 7.4 Tracker
 
@@ -281,6 +328,10 @@ Run all of the following with a valid Bearer token. Unless noted, also test each
 | 7.4.3 | `/tracker/{id}/status` | PATCH | Another user's item | 403 |
 | 7.4.4 | `/tracker/note` | POST | `{ job_id, note }` | 200 `{ status: "note_saved" }` |
 | 7.4.5 | `/tracker/{id}/events` | GET | Item with events | 200, event history ordered by `created_at` desc |
+| 7.4.6 | `/tracker/manual` | POST | `{ title, company, application_date }` | 201 `{ data: { item_id, job_id, current_status: "applied" } }` |
+| 7.4.7 | `/tracker/manual` | POST | Missing `title` | 422 FastAPI validation |
+| 7.4.8 | `/tracker/manual` | POST | With `job_description` | 200, description stored in `jobs.application_schema.description` |
+| 7.4.9 | `/tracker/manual` | POST | No auth | 401 |
 
 ### 7.5 Profile
 
@@ -303,6 +354,19 @@ Run all of the following with a valid Bearer token. Unless noted, also test each
 | 7.6.6 | `/apply/sessions/{id}/rollback` | POST | Session within rollback window | 200 `{ status: "rolled_back" }`, `status=cancelled` in DB |
 | 7.6.7 | `/apply/sessions/{id}/rollback` | POST | Session with `rollback_available=false` | 409 "Rollback window has closed." |
 
+### 7.8 Settings
+
+| # | Endpoint | Method | Test | Expected |
+|---|----------|--------|------|----------|
+| 7.8.1 | `/settings/blacklist` | GET | Authenticated | 200, list of blacklisted companies for user |
+| 7.8.2 | `/settings/blacklist` | GET | No entries | 200 `{ data: [] }` |
+| 7.8.3 | `/settings/blacklist` | POST | `{ company_name: "Google", company_website: "google.com" }` | 201, entry created; visible in subsequent GET |
+| 7.8.4 | `/settings/blacklist` | POST | Missing `company_name` | 422 FastAPI validation |
+| 7.8.5 | `/settings/blacklist/{id}` | DELETE | Own entry | 200 `{ status: "deleted" }` |
+| 7.8.6 | `/settings/blacklist/{id}` | DELETE | Another user's entry | 403 |
+| 7.8.7 | `/settings/blacklist` | GET | No auth | 401 |
+| 7.8.8 | `/settings/blacklist` | POST | No auth | 401 |
+
 ### 7.7 Outreach
 
 | # | Endpoint | Method | Test | Expected |
@@ -312,14 +376,27 @@ Run all of the following with a valid Bearer token. Unless noted, also test each
 | 7.7.3 | `/outreach/` | GET | — | 200, list of unsent/undiscarded drafts |
 | 7.7.4 | `/outreach/{id}/discard` | PATCH | Own draft | 200 `{ status: "discarded" }`, `user_discarded=true` in DB |
 
+### 7.9 Settings Page (Frontend)
+
+| # | Test Case | Steps | Expected |
+|---|-----------|-------|---------|
+| 7.9.1 | Page renders | Navigate to `/settings` | 4 sections visible: Profile, Job Targeting, Blacklisted Companies, Integrations |
+| 7.9.2 | Auth gate | Visit `/settings` without session | Redirect to `/login` |
+| 7.9.3 | Profile section | Update name | PATCH `/profile/` called; success message shown |
+| 7.9.4 | Job Targeting section | Toggle remote preference | Profile updated |
+| 7.9.5 | Blacklist — add company | Enter company name + website, click Add | POST `/settings/blacklist`; company appears in list immediately |
+| 7.9.6 | Blacklist — remove company | Click trash/remove icon on an entry | DELETE `/settings/blacklist/{id}`; entry removed from list |
+| 7.9.7 | Integrations — Apify key | Paste API key, save | Key stored in `profiles.apify_api_key`; show/hide toggle works |
+| 7.9.8 | Integrations — key hidden | Default state | Key input shows `•••` (password type), not plain text |
+
 ---
 
 ## 8. Security & Auth Edge Cases
 
 | # | Test Case | Expected |
 |---|-----------|----------|
-| 8.1 | Missing `Authorization` header on any protected endpoint | FastAPI's `HTTPBearer` returns 403 (not 401) — this is FastAPI's default behavior for missing scheme |
-| 8.2 | `Authorization: Bearer ` (empty token) | 403 (FastAPI rejects at bearer extraction before reaching `get_current_user`) |
+| 8.1 | Missing `Authorization` header on any protected endpoint | 401 "Not authenticated" (StrictBearer wraps HTTPBearer to return 401 for missing scheme — F-1 fixed) |
+| 8.2 | `Authorization: Bearer ` (empty token) | 401 "Not authenticated" (StrictBearer catches empty token string) |
 | 8.3 | `Authorization: Bearer eyJfake.token.here` | 401 from `get_current_user` → Render logs show actual exception type from `security.py` |
 | 8.4 | Expired access token (not refreshed) | Backend logs `Auth validation failed — AuthApiError: JWT expired ...` |
 | 8.5 | Cross-user data access | User A's token + User B's resource ID | 403 or 404 for ownership-checked resources |
