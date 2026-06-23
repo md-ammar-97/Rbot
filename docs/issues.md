@@ -22,18 +22,22 @@
 | F-3 | Medium | ✅ Fixed | Frontend | Onboarding progress circles mark skipped steps as complete (✓) |
 | F-OTP | High | ✅ Fixed | Frontend | OTP input converts mixed-case code to all-caps before verification |
 
+### Recently Fixed
+| ID | Severity | Status | Area | Title |
+|----|----------|--------|------|-------|
+| F-4 | High | ✅ Fixed | Frontend UI | Sidebar PMFit logo renders as solid white box |
+| F-5 | Medium | ✅ Fixed | Frontend UI | Sidebar logo + "PMFit" text undersized relative to nav items |
+| F-7 | High | ✅ Fixed | Routing | Logged-in user navigating to `/` sees landing page instead of dashboard |
+| F-8 | Medium | ✅ Fixed | Frontend UX | File upload shows static "Uploading…" text — no animation or progress |
+| F-9 | High | ✅ Fixed | GitHub Step | GitHub repo connection broken; single-repo only; no input format guidance |
+| F-10 | High | ✅ Fixed | Recovery UX | Recovery questions: per-answer submit grays all; needs single final submit |
+| F-12 | Medium | ✅ Fixed | Tracker | Kanban missing columns: Interviewing, Rejected, Ghosted |
+
 ### Open
 | ID | Severity | Status | Area | Title |
 |----|----------|--------|------|-------|
-| F-4 | High | 🔴 Open | Frontend UI | Sidebar PMFit logo renders as solid white box |
-| F-5 | Medium | 🟡 Open | Frontend UI | Sidebar logo + "PMFit" text undersized relative to nav items |
-| F-6 | High | 🔴 Open | Auth | Session not persisting 24 hrs — users get logged out prematurely |
-| F-7 | High | 🔴 Open | Routing | Logged-in user navigating to `/` sees landing page instead of dashboard |
-| F-8 | Medium | 🟡 Open | Frontend UX | File upload shows static "Uploading…" text — no animation or progress |
-| F-9 | High | 🔴 Open | GitHub Step | GitHub repo connection broken; single-repo only; no input format guidance |
-| F-10 | High | 🔴 Open | Recovery UX | Recovery questions: per-answer submit grays all; answers not saved to profile; needs single final submit |
+| F-6 | High | 🔴 Open | Auth | Session not persisting 24 hrs — set JWT Expiry to 86400 in Supabase dashboard |
 | F-11 | High | 🔴 Open | Profile | Evidence source buttons route back to onboarding instead of dedicated modal |
-| F-12 | Medium | 🟡 Open | Tracker | Kanban missing columns: Interviewing, Rejected, Ghosted |
 | F-13 | High | 🔴 Open | Tracker | No way to manually add jobs applied outside PMFit to Kanban board |
 | F-14 | Critical | 🔴 Open | Engine | Resume refinement + cover letter generation engine not implemented |
 | F-15 | High | 🔴 Open | Settings | Settings page is blank — no profile fields, targeting, or preferences |
