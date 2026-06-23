@@ -62,7 +62,7 @@ export default async function ArtifactsPage({
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  const artifacts: Artifact[] = (rawArtifacts ?? []) as Artifact[];
+  const artifacts: Artifact[] = (rawArtifacts ?? []) as unknown as Artifact[];
 
   // Generate signed URLs for all artifacts
   const artifactsWithUrls = await Promise.all(
@@ -83,7 +83,7 @@ export default async function ArtifactsPage({
     .eq("user_discarded", false)
     .order("created_at", { ascending: false });
 
-  const drafts: OutreachDraft[] = (rawDrafts ?? []) as OutreachDraft[];
+  const drafts: OutreachDraft[] = (rawDrafts ?? []) as unknown as OutreachDraft[];
 
   // Fetch recent scored jobs for outreach form picker
   const { data: rawScored } = await supabase
@@ -94,7 +94,7 @@ export default async function ArtifactsPage({
     .order("fit_score", { ascending: false })
     .limit(20);
 
-  const recentJobs = ((rawScored ?? []) as ScoredJob[])
+  const recentJobs = ((rawScored ?? []) as unknown as ScoredJob[])
     .map((s) => s.jobs)
     .filter((j): j is { id: string; title: string; company: string } => j !== null);
 
