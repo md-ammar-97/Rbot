@@ -15,6 +15,11 @@ interface KanbanCardProps {
   postingDate?: string | null;
 }
 
+function toTitleCase(s: string | null | undefined) {
+  if (!s) return s;
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function formatDate(iso: string | null | undefined) {
   if (!iso) return null;
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
@@ -62,7 +67,7 @@ export function KanbanCard({ title, company, atsFamily, updatedAt, jobId, source
 
           {location && (
             <p className="flex items-center gap-0.5 text-[11px] text-pmfit-text-muted mt-0.5 truncate">
-              <MapPin size={9} /> {location}
+              <MapPin size={9} /> {toTitleCase(location)}
             </p>
           )}
 

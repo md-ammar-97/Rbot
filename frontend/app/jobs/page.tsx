@@ -152,6 +152,7 @@ export default function JobsPage() {
               >
                 <option value="">All Regions</option>
                 <option value="us">United States</option>
+                <option value="canada">Canada</option>
                 <option value="uk">United Kingdom</option>
                 <option value="eu">Europe</option>
                 <option value="nordics">Nordics</option>

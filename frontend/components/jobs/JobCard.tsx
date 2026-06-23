@@ -67,6 +67,11 @@ const confidenceClass: Record<string, string> = {
   low:    "badge-orange",
 };
 
+function toTitleCase(s: string | null | undefined) {
+  if (!s) return s;
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
@@ -115,7 +120,7 @@ export function JobCard({ fitScore, evidenceConfidence, automationEligibility, f
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
               {job.location_normalized && (
                 <span className="flex items-center gap-1 text-[12px] text-pmfit-text-muted">
-                  <MapPin size={11} /> {job.location_normalized}{job.remote_eligible ? " · Remote OK" : ""}
+                  <MapPin size={11} /> {toTitleCase(job.location_normalized)}{job.remote_eligible ? " · Remote OK" : ""}
                 </span>
               )}
               <span className="flex items-center gap-1 text-[12px] text-pmfit-text-muted">

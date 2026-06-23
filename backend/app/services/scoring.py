@@ -33,11 +33,12 @@ def score_job_for_user(user_id: str, job_id: str):
     work_auth_ok = _check_work_auth(profile, job)
 
     if not location_ok or not work_auth_ok:
+        reasons = []
+        if not location_ok:  reasons.append("Location outside your target areas")
+        if not work_auth_ok: reasons.append("Sponsorship not offered")
         _save_score(
             user_id, job_id, 0, "low", "manual_only", {},
-            ineligibility_reason=(
-                f"location_match={location_ok}, work_auth={work_auth_ok}"
-            ),
+            ineligibility_reason="; ".join(reasons),
         )
         return
 
