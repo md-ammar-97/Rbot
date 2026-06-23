@@ -7,9 +7,9 @@ router = APIRouter()
 
 
 def _complete_recovery(user_id: str, case_id: str) -> None:
-    """Mark case resolved, profile complete, queue baseline generation."""
+    """Mark case complete, profile complete, queue baseline generation."""
     supabase_admin.table("recovery_cases").update({
-        "status": "resolved",
+        "status": "complete",
         "resolved_at": "now()",
     }).eq("id", case_id).execute()
     supabase_admin.table("profiles").update({
@@ -135,11 +135,12 @@ async def submit_answer(payload: AnswerPayload, user=Depends(get_current_user)):
         }).eq("id", existing["id"]).execute()
     else:
         supabase_admin.table("recovery_answers").insert({
-            "case_id":       payload.case_id,
-            "user_id":       user.id,
-            "question_id":   payload.question_id,
-            "question_text": payload.question_text,
-            "answer":        payload.answer,
+            "case_id":        payload.case_id,
+            "user_id":        user.id,
+            "question_id":    payload.question_id,
+            "question_text":  payload.question_text,
+            "answer":         payload.answer,
+            "answer_applied": False,
         }).execute()
 
     # Count distinct answered questions (real count, not a broken RPC)
