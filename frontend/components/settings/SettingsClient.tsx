@@ -382,24 +382,30 @@ function RecoverySection() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const token = await getToken();
-    const [sResp, qResp] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/status`,    { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/questions`, { headers: { Authorization: `Bearer ${token}` } }),
-    ]);
-    const sData = await sResp.json();
-    const qData = await qResp.json();
-    setStatus(sData.data.recovery_status);
-    const qs: RecoveryQuestion[] = qData.data.questions || [];
-    setQuestions(qs);
-    setCaseId(qData.data.case_id);
-    // Pre-fill any previously saved answers
-    const pre: Record<string, string> = {};
-    for (const q of qs) {
-      if (q.saved_answer) pre[q.id] = q.saved_answer;
+    try {
+      const token = await getToken();
+      const [sResp, qResp] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/status`,    { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/recovery/questions`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (!sResp.ok || !qResp.ok) throw new Error("API error");
+      const sData = await sResp.json();
+      const qData = await qResp.json();
+      setStatus(sData.data?.recovery_status ?? "");
+      const qs: RecoveryQuestion[] = qData.data?.questions || [];
+      setQuestions(qs);
+      setCaseId(qData.data?.case_id ?? null);
+      // Pre-fill any previously saved answers
+      const pre: Record<string, string> = {};
+      for (const q of qs) {
+        if (q.saved_answer) pre[q.id] = q.saved_answer;
+      }
+      setAnswers(pre);
+    } catch {
+      setStatus("error");
+    } finally {
+      setLoading(false);
     }
-    setAnswers(pre);
-    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -443,6 +449,17 @@ function RecoverySection() {
         <div className="flex items-center gap-2 text-pmfit-text-secondary text-[13px]">
           <span className="w-4 h-4 border-2 border-pmfit-blue border-t-transparent rounded-full animate-spin" />
           Loading…
+        </div>
+      </Section>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <Section title="Resume Quality Recovery" description="Answer a few questions so PMFit can build your baseline resume and score jobs for you.">
+        <div className="flex items-center justify-between p-4 rounded-xl bg-pmfit-red/5 border border-pmfit-red/20">
+          <p className="text-[13px] text-pmfit-red">Could not load recovery status. Check your connection.</p>
+          <button onClick={load} className="btn-secondary text-[12px] h-8 px-3 shrink-0 ml-4">Retry</button>
         </div>
       </Section>
     );
