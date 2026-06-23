@@ -88,6 +88,12 @@ def parse_linkedin_export_task(self, evidence_id: str, user_id: str, storage_pat
             "parse_model":      "csv_parser",
         }).eq("id", evidence_id).execute()
 
+        # Delete the ZIP — we only need the extracted CSV data; no reason to store the archive
+        try:
+            supabase_admin.storage.from_("linkedin-exports").remove([storage_path])
+        except Exception:
+            pass  # non-fatal; ZIP will linger but data is already saved
+
         build_profile_graph.delay(user_id)
 
     except ValueError as e:
@@ -285,28 +291,100 @@ def generate_baseline(self, user_id: str):
 @celery_app.task(bind=True)
 def discover_and_normalize_jobs(self):
     """Triggered by n8n every 4 hours. Fetches from all boards and enqueues normalization."""
-    from app.integrations.greenhouse_client import fetch_jobs as gh_fetch, DEFAULT_BOARDS
-    from app.integrations.lever_client import fetch_jobs as lv_fetch, DEFAULT_COMPANIES
+    from app.integrations.greenhouse_client    import fetch_jobs as gh_fetch,  DEFAULT_BOARDS
+    from app.integrations.lever_client         import fetch_jobs as lv_fetch,  DEFAULT_COMPANIES
+    from app.integrations.ashby_client         import fetch_jobs as ash_fetch, DEFAULT_COMPANIES as ASHBY_COMPANIES
+    from app.integrations.smartrecruiters_client import fetch_jobs as sr_fetch, DEFAULT_COMPANIES as SR_COMPANIES
+    from app.integrations.workable_client      import fetch_jobs as wk_fetch,  DEFAULT_COMPANIES as WORKABLE_COMPANIES
+    from app.integrations.breezy_client        import fetch_jobs as br_fetch,  DEFAULT_COMPANIES as BREEZY_COMPANIES
+    from app.integrations.teamtailor_client    import fetch_jobs as tt_fetch,  DEFAULT_COMPANIES as TT_COMPANIES
+    from app.integrations.jazzhr_client        import fetch_jobs as jz_fetch,  DEFAULT_COMPANIES as JAZZ_COMPANIES
+    from app.integrations.remoteok_client      import fetch_jobs as rok_fetch
+    from app.integrations.remotive_client      import fetch_jobs as rmt_fetch
+    from app.integrations.wellfound_client     import fetch_jobs as wf_fetch
+    from app.integrations.personio_client      import fetch_jobs as prs_fetch
+    from app.integrations.reed_client          import fetch_jobs as rd_fetch
+    from app.integrations.apify_client         import fetch_indeed_jobs
 
+    def _upsert_and_queue(raw_job: dict) -> None:
+        result = supabase_admin.table("raw_jobs").upsert(
+            raw_job, on_conflict="source,source_job_id"
+        ).execute()
+        if result.data:
+            normalize_raw_job.delay(result.data[0]["id"])
+
+    # ── Slug-based ATS boards ──────────────────────────────────────────────────
     for board_token in DEFAULT_BOARDS:
         try:
             for raw_job in gh_fetch(board_token):
-                result = supabase_admin.table("raw_jobs").upsert(
-                    raw_job, on_conflict="source,source_job_id"
-                ).execute()
-                if result.data:
-                    normalize_raw_job.delay(result.data[0]["id"])
+                _upsert_and_queue(raw_job)
         except Exception:
             continue
 
     for company_slug in DEFAULT_COMPANIES:
         try:
             for raw_job in lv_fetch(company_slug):
-                result = supabase_admin.table("raw_jobs").upsert(
-                    raw_job, on_conflict="source,source_job_id"
-                ).execute()
-                if result.data:
-                    normalize_raw_job.delay(result.data[0]["id"])
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    for company_slug in ASHBY_COMPANIES:
+        try:
+            for raw_job in ash_fetch(company_slug):
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    for company_slug in SR_COMPANIES:
+        try:
+            for raw_job in sr_fetch(company_slug):
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    for company_slug in WORKABLE_COMPANIES:
+        try:
+            for raw_job in wk_fetch(company_slug):
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    for company_slug in BREEZY_COMPANIES:
+        try:
+            for raw_job in br_fetch(company_slug):
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    for company_slug in TT_COMPANIES:
+        try:
+            for raw_job in tt_fetch(company_slug):
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    for company_slug in JAZZ_COMPANIES:
+        try:
+            for raw_job in jz_fetch(company_slug):
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    # ── Single-endpoint boards (no slug) ──────────────────────────────────────
+    for fetcher_fn in (rok_fetch, rmt_fetch, wf_fetch, prs_fetch, rd_fetch):
+        try:
+            for raw_job in fetcher_fn():
+                _upsert_and_queue(raw_job)
+        except Exception:
+            continue
+
+    # ── Per-user Apify scraping ────────────────────────────────────────────────
+    users_with_apify = supabase_admin.table("profiles").select("id, apify_api_key") \
+                       .not_.is_("apify_api_key", "null").execute().data or []
+    for u in users_with_apify:
+        try:
+            for raw_job in fetch_indeed_jobs(u["apify_api_key"]):
+                _upsert_and_queue(raw_job)
         except Exception:
             continue
 

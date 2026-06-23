@@ -4,7 +4,8 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { DiagnosisDonut, DimensionBars } from "@/components/recovery/DiagnosisChart";
 import { EvidenceGapCard } from "@/components/recovery/EvidenceGapCard";
-import { CheckCircle2, AlertCircle, ArrowRight, Upload, Github, Linkedin, FileWarning } from "lucide-react";
+import { CheckCircle2, AlertCircle, ArrowRight, FileWarning } from "lucide-react";
+import { EvidenceSourceButtons } from "@/components/profile/EvidenceSourceButtons";
 
 interface DiagnosisDimension {
   score:     number;
@@ -155,24 +156,7 @@ export default async function ProfilePage() {
 
           <div className="card p-6">
             <h2 className="text-[16px] font-bold text-pmfit-text mb-4">Evidence Sources</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { icon: Upload,   label: "Upload Resume",       href: "/onboarding?force=true&step=resume" },
-                { icon: Linkedin, label: "Add LinkedIn Export", href: "/onboarding?force=true&step=linkedin" },
-                { icon: Github,   label: "Connect GitHub",      href: "/onboarding?force=true&step=github" },
-              ].map(({ icon: Icon, label, href }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-pmfit-border hover:border-pmfit-blue hover:bg-pmfit-blue-subtle/30 transition-all group"
-                >
-                  <Icon size={22} className="text-pmfit-text-muted group-hover:text-pmfit-blue" />
-                  <span className="text-[13px] font-medium text-pmfit-text-secondary group-hover:text-pmfit-blue text-center">
-                    {label}
-                  </span>
-                </Link>
-              ))}
-            </div>
+            <EvidenceSourceButtons />
           </div>
         </div>
 

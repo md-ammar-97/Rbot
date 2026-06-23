@@ -2,7 +2,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.security import verify_internal_key
-from app.api import auth, profile, intake, recovery, jobs, apply, outreach, tracker
+from app.api import auth, profile, intake, recovery, jobs, apply, outreach, tracker, settings
 
 app = FastAPI(title="RBot API", version="1.0.0", docs_url="/docs")
 
@@ -28,6 +28,7 @@ app.include_router(jobs.router,     prefix="/jobs",     tags=["jobs"])
 app.include_router(apply.router,    prefix="/apply",    tags=["apply"])
 app.include_router(outreach.router, prefix="/outreach", tags=["outreach"])
 app.include_router(tracker.router,  prefix="/tracker",  tags=["tracker"])
+app.include_router(settings.router, prefix="/settings", tags=["settings"])
 
 
 @app.get("/health")

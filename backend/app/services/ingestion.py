@@ -5,7 +5,7 @@ from datetime import datetime
 
 from app.integrations.groq_client import groq_chat
 
-EXPECTED_LINKEDIN_FILES = {"Positions.csv", "Skills.csv", "Profile.csv"}
+EXPECTED_LINKEDIN_FILES = {"Positions.csv", "Skills.csv", "Profile.csv", "Education.csv"}
 
 GITHUB_SUMMARY_SYSTEM = """You are extracting PM-relevant evidence from a GitHub project file.
 
@@ -31,6 +31,7 @@ def parse_linkedin_export(zip_bytes: bytes) -> dict:
                                    required=["Company Name", "Title", "Started On"])
             skills    = _parse_csv(z, "Skills.csv", required=["Name"])
             profile   = _parse_csv(z, "Profile.csv", required=["First Name"])
+            education = _parse_csv(z, "Education.csv", required=[])
 
     except zipfile.BadZipFile:
         raise ValueError("The export file appears to be corrupted or is not a ZIP file.")
@@ -39,6 +40,7 @@ def parse_linkedin_export(zip_bytes: bytes) -> dict:
         "positions": [_normalise_position(r) for r in positions],
         "skills":    [r.get("Name", "") for r in skills if r.get("Name")],
         "profile":   profile[0] if profile else {},
+        "education": education,
     }
 
 

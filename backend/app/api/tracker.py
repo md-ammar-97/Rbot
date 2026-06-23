@@ -61,6 +61,41 @@ async def update_status(item_id: str, payload: StatusUpdate, user=Depends(get_cu
     return {"data": {"status": "updated", "new_status": payload.new_status}}
 
 
+class ManualJobPayload(BaseModel):
+    title:           str
+    company:         str
+    application_date: str           # ISO date, e.g. "2026-06-23"
+    job_description: str | None = None
+
+
+@router.post("/manual")
+async def add_manual_job(payload: ManualJobPayload, user=Depends(get_current_user)):
+    """Create a jobs row + tracker_items row for a job applied to outside PMFit."""
+    import uuid
+    job_id = str(uuid.uuid4())
+
+    supabase_admin.table("jobs").insert({
+        "id":                 job_id,
+        "title":              payload.title.strip(),
+        "company":            payload.company.strip(),
+        "title_normalized":   payload.title.strip().lower(),
+        "company_normalized": payload.company.strip().lower(),
+        "posting_date":       payload.application_date,
+        "ats_family":         "unknown",
+        # Store description in application_schema (jobs table has no description column)
+        "application_schema": {"description": payload.job_description} if payload.job_description else None,
+    }).execute()
+
+    item = supabase_admin.table("tracker_items").insert({
+        "user_id":        user.id,
+        "job_id":         job_id,
+        "current_status": "applied",
+    }).execute()
+
+    item_id = item.data[0]["id"]
+    return {"data": {"item_id": item_id, "job_id": job_id, "current_status": "applied"}}
+
+
 class NotePayload(BaseModel):
     job_id: str
     note:   str

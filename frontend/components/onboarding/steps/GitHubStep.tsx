@@ -12,15 +12,30 @@ interface ConnectedRepo {
   slug: string;
 }
 
+function parseGitHubUrl(raw: string): { owner: string; repo: string } | null {
+  const cleaned = raw
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^github\.com\//, "")
+    .replace(/\/$/, "");
+  const parts = cleaned.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+  return { owner: parts[0], repo: parts[1] };
+}
+
 export default function GitHubStep({ userId, onNext, onComplete }: Props) {
-  const [owner,          setOwner]          = useState("");
-  const [repo,           setRepo]           = useState("");
-  const [connecting,     setConnecting]     = useState(false);
-  const [error,          setError]          = useState("");
+  const [url,           setUrl]           = useState("");
+  const [connecting,    setConnecting]    = useState(false);
+  const [error,         setError]         = useState("");
   const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
 
+  const parsed = parseGitHubUrl(url);
+
   const handleConnect = async () => {
-    if (!owner.trim() || !repo.trim()) return;
+    if (!parsed) {
+      setError("Invalid URL — paste a full GitHub repo URL.");
+      return;
+    }
     setConnecting(true);
     setError("");
 
@@ -29,7 +44,7 @@ export default function GitHubStep({ userId, onNext, onComplete }: Props) {
       const resp  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/intake/github`, {
         method:  "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body:    JSON.stringify({ owner: owner.trim(), repo: repo.trim(), is_private: false }),
+        body:    JSON.stringify({ owner: parsed.owner, repo: parsed.repo, is_private: false }),
       });
 
       if (!resp.ok) {
@@ -37,10 +52,9 @@ export default function GitHubStep({ userId, onNext, onComplete }: Props) {
         throw new Error(err.detail || "Failed to connect repository.");
       }
 
-      const slug = `${owner.trim()}/${repo.trim()}`;
+      const slug = `${parsed.owner}/${parsed.repo}`;
       setConnectedRepos((prev) => [...prev, { slug }]);
-      setOwner("");
-      setRepo("");
+      setUrl("");
       onComplete();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Connection failed. Please try again.");
@@ -58,42 +72,32 @@ export default function GitHubStep({ userId, onNext, onComplete }: Props) {
 
       {/* Format instructions */}
       <div className="mb-5 rounded-xl bg-pmfit-blue/5 border border-pmfit-blue/20 px-4 py-3">
-        <p className="text-[12px] font-semibold text-pmfit-blue mb-1">How to enter your repo</p>
+        <p className="text-[12px] font-semibold text-pmfit-blue mb-1">How to add a repo</p>
         <p className="text-[12px] text-pmfit-text-secondary">
-          Enter your <strong>GitHub username</strong> and the <strong>repository name</strong> in
-          separate fields. Do <em>not</em> enter a full URL.
+          Paste the full GitHub URL for any public repository.
         </p>
         <p className="text-[12px] text-pmfit-text-muted mt-1">
           Example:{" "}
-          <code className="bg-pmfit-border px-1 rounded text-[11px]">md-ammar-97</code> /{" "}
-          <code className="bg-pmfit-border px-1 rounded text-[11px]">pmfit-portfolio</code>
-          {" "}· Public repos only
+          <code className="bg-pmfit-border px-1 rounded text-[11px]">
+            https://github.com/md-ammar-97/pmfit
+          </code>
         </p>
       </div>
 
-      {/* Input row */}
+      {/* URL input row */}
       <div className="flex gap-2 mb-2">
         <input
-          type="text"
-          placeholder="username"
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
-          className="input flex-1 text-[14px]"
-          disabled={connecting}
-        />
-        <span className="self-center text-pmfit-text-muted font-bold">/</span>
-        <input
-          type="text"
-          placeholder="repository-name"
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
+          type="url"
+          placeholder="https://github.com/username/repository"
+          value={url}
+          onChange={(e) => { setUrl(e.target.value); setError(""); }}
           onKeyDown={(e) => e.key === "Enter" && handleConnect()}
           className="input flex-1 text-[14px]"
           disabled={connecting}
         />
         <button
           onClick={handleConnect}
-          disabled={connecting || !owner.trim() || !repo.trim()}
+          disabled={connecting || !parsed}
           className="btn-primary text-[13px] h-10 px-4 shrink-0 flex items-center gap-2 disabled:opacity-50"
         >
           {connecting ? (

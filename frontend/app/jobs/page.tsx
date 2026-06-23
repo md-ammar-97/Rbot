@@ -16,14 +16,18 @@ interface ScoredJob {
   ineligibility_reason:   string | null;
   score_breakdown:        { components?: Record<string, { score: number }> } | null;
   jobs: {
-    id:              string;
-    title:           string;
-    company:         string;
-    location:        string;
-    seniority_level: string;
-    remote_eligible: boolean;
-    ats_family:      string;
-    posting_date:    string;
+    id:               string;
+    title:            string;
+    company:          string;
+    location:         string;
+    seniority_level:  string;
+    remote_eligible:  boolean;
+    ats_family:       string;
+    posting_date:     string;
+    board_categories: string[];
+    source_regions:   string[];
+    is_startup:       boolean;
+    is_remote_first:  boolean;
   };
 }
 
@@ -31,26 +35,47 @@ const containerV = { hidden: {}, show: { transition: { staggerChildren: 0.06 } }
 const cardV      = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 
 export default function JobsPage() {
-  const [jobs,    setJobs]    = useState<ScoredJob[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [minFit,  setMinFit]  = useState(0);
-  const [query,   setQuery]   = useState("");
+  const [jobs,             setJobs]             = useState<ScoredJob[]>([]);
+  const [loading,          setLoading]          = useState(true);
+  const [minFit,           setMinFit]           = useState(0);
+  const [query,            setQuery]            = useState("");
+  const [recoveryComplete, setRecoveryComplete] = useState(false);
+  const [showFilters,      setShowFilters]      = useState(false);
+  const [remoteOnly,       setRemoteOnly]       = useState(false);
+  const [startupOnly,      setStartupOnly]      = useState(false);
+  const [sourceRegion,     setSourceRegion]     = useState("");
+  const [boardCategory,    setBoardCategory]    = useState("");
 
   const supabase = createClient();
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const token = (await supabase.auth.getSession()).data.session?.access_token ?? "";
-      const res   = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/jobs/?min_fit=${minFit}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data  = await res.json();
-      setJobs(data.data || []);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+
+      const params = new URLSearchParams({ min_fit: String(minFit) });
+      if (remoteOnly)    params.set("remote",         "true");
+      if (startupOnly)   params.set("is_startup",     "true");
+      if (sourceRegion)  params.set("source_region",  sourceRegion);
+      if (boardCategory) params.set("board_category", boardCategory);
+
+      const [jobsRes, profileRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/profile/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const jobsData    = await jobsRes.json();
+      const profileData = await profileRes.json();
+      setJobs(jobsData.data || []);
+      setRecoveryComplete(profileData.data?.recovery_status === "complete");
       setLoading(false);
     })();
-  }, [minFit]); // eslint-disable-line
+  }, [minFit, remoteOnly, startupOnly, sourceRegion, boardCategory]); // eslint-disable-line
 
   const requestTailoring = async (jobId: string) => {
     const token = (await supabase.auth.getSession()).data.session?.access_token ?? "";
@@ -77,7 +102,7 @@ export default function JobsPage() {
           </p>
         </div>
 
-        <div className="sm:ml-auto flex items-center gap-3">
+        <div className="sm:ml-auto flex flex-wrap items-center gap-3">
           {/* Search */}
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-pmfit-text-muted" />
@@ -91,7 +116,12 @@ export default function JobsPage() {
           </div>
           {/* Min fit filter */}
           <div className="flex items-center gap-2">
-            <SlidersHorizontal size={15} className="text-pmfit-text-muted" />
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className={`btn-ghost h-9 px-3 flex items-center gap-1.5 text-[13px] ${showFilters ? "text-pmfit-blue" : ""}`}
+            >
+              <SlidersHorizontal size={15} /> Filters
+            </button>
             <select
               className="input h-9 w-28 text-[13px]"
               value={minFit}
@@ -102,6 +132,54 @@ export default function JobsPage() {
               ))}
             </select>
           </div>
+          {/* Expanded filters */}
+          {showFilters && (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setRemoteOnly((v) => !v)}
+                className={`h-8 px-3 rounded-lg text-[12px] font-medium border transition-colors ${
+                  remoteOnly ? "bg-pmfit-teal text-white border-pmfit-teal" : "border-pmfit-border text-pmfit-text-secondary"
+                }`}
+              >
+                Remote Only
+              </button>
+              <button
+                onClick={() => setStartupOnly((v) => !v)}
+                className={`h-8 px-3 rounded-lg text-[12px] font-medium border transition-colors ${
+                  startupOnly ? "bg-pmfit-blue text-white border-pmfit-blue" : "border-pmfit-border text-pmfit-text-secondary"
+                }`}
+              >
+                Startup
+              </button>
+              <select
+                className="input h-8 text-[12px] w-36"
+                value={sourceRegion}
+                onChange={(e) => setSourceRegion(e.target.value)}
+              >
+                <option value="">All Regions</option>
+                <option value="us">United States</option>
+                <option value="uk">United Kingdom</option>
+                <option value="eu">Europe</option>
+                <option value="nordics">Nordics</option>
+                <option value="india">India</option>
+                <option value="global">Global / Remote</option>
+              </select>
+              <select
+                className="input h-8 text-[12px] w-36"
+                value={boardCategory}
+                onChange={(e) => setBoardCategory(e.target.value)}
+              >
+                <option value="">All Boards</option>
+                <option value="remote_first">Remote-First</option>
+                <option value="startup">Startup</option>
+                <option value="general_tech">General Tech</option>
+                <option value="enterprise">Enterprise</option>
+                <option value="uk_eu_focused">UK / EU</option>
+                <option value="nordic">Nordic</option>
+                <option value="india_focused">India</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -131,6 +209,7 @@ export default function JobsPage() {
                 fitExplanation={item.fit_explanation}
                 ineligibilityReason={item.ineligibility_reason}
                 scoreBreakdown={item.score_breakdown ?? undefined}
+                recoveryComplete={recoveryComplete}
                 job={item.jobs}
                 onTailor={requestTailoring}
               />

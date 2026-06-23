@@ -28,7 +28,7 @@ NORM_PROMPT = """Normalise this job posting into a JSON object with exactly thes
   "domains": ["<domain>"],
   "required_skills": ["<skill>"],
   "preferred_skills": ["<skill>"],
-  "ats_family": "<greenhouse|lever|unknown>"
+  "ats_family": "<greenhouse|lever|ashby|smartrecruiters|workable|breezy|teamtailor|jazzhr|remoteok|remotive|wellfound|reed|personio|unknown>"
 }
 Rules:
 - Only use information present in the posting. null means unknown — do not guess.
@@ -86,14 +86,29 @@ def normalise_raw_job(raw_job_id: str):
                    .is_("location_normalized", "null") \
                    .maybe_single().execute()
 
+    raw_cat    = raw.get("board_category")
+    raw_reg    = raw.get("source_region", "global")
+    remote_eligible = norm.get("remote_eligible")
+
     if existing and existing.data:
         canonical_id = existing.data["id"]
+        # Union new category/region into existing arrays
+        prev = supabase_admin.table("jobs").select(
+            "board_categories, source_regions, is_remote_first"
+        ).eq("id", canonical_id).single().execute().data or {}
+        new_cats = list(set((prev.get("board_categories") or []) + ([raw_cat] if raw_cat else [])))
+        new_regs = list(set((prev.get("source_regions")   or []) + [raw_reg]))
         supabase_admin.table("jobs").update({
             "last_refreshed_at": "now()",
             "is_stale":          False,
+            "board_categories":  new_cats,
+            "source_regions":    new_regs,
+            "is_startup":        "startup" in new_cats,
+            "is_remote_first":   "remote_first" in new_cats or prev.get("is_remote_first", False) or bool(remote_eligible),
         }).eq("id", canonical_id).execute()
     else:
         canonical_id = str(uuid.uuid4())
+        cats = [raw_cat] if raw_cat else []
         supabase_admin.table("jobs").insert({
             "id":                 canonical_id,
             "title":              raw.get("title_raw", ""),
@@ -101,7 +116,7 @@ def normalise_raw_job(raw_job_id: str):
             "company":            raw.get("company_raw", ""),
             "company_normalized": company_norm,
             "location_normalized": location_norm,
-            "remote_eligible":    norm.get("remote_eligible"),
+            "remote_eligible":    remote_eligible,
             "sponsorship_offered": norm.get("sponsorship_offered"),
             "seniority_level":    norm.get("seniority_level"),
             "domains":            norm.get("domains", []),
@@ -109,6 +124,10 @@ def normalise_raw_job(raw_job_id: str):
             "preferred_skills":   norm.get("preferred_skills", []),
             "ats_family":         norm.get("ats_family", "unknown"),
             "posting_date":       raw.get("fetched_at"),
+            "board_categories":   cats,
+            "source_regions":     [raw_reg],
+            "is_startup":         raw_cat == "startup",
+            "is_remote_first":    raw_cat == "remote_first" or bool(remote_eligible),
         }).execute()
 
     supabase_admin.table("raw_jobs").update({

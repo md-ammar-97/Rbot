@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
     playwright_headless: bool = False
+    reed_api_key: str = ""
 
     class Config:
         env_file = ".env"

@@ -22,6 +22,7 @@ class ProfileUpdate(BaseModel):
     compensation_max:     int | None       = None
     search_intent:        str | None       = None
     auto_apply_enabled:   bool | None      = None
+    apify_api_key:        str | None       = None
 
 
 @router.patch("/")

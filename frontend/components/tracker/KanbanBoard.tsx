@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanCard } from "./KanbanCard";
+import { AddJobModal } from "./AddJobModal";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 interface TrackerItem {
@@ -24,7 +26,6 @@ const COLUMNS: { status: string; label: string; color: string }[] = [
   { status: "tailoring",           label: "Tailoring",     color: "#6B5ACD" },
   { status: "applied",             label: "Applied",       color: "#20C997" },
   { status: "outreach_sent",       label: "Outreach",      color: "#1D7EFF" },
-  { status: "recruiter_response",  label: "Recruiter",     color: "#FF8C00" },
   { status: "interview_scheduled", label: "Interviewing",  color: "#FF8C00" },
   { status: "final_round",         label: "Final Round",   color: "#6B5ACD" },
   { status: "offer_received",      label: "Offer",         color: "#20C997" },
@@ -36,8 +37,9 @@ const containerV = { hidden: {}, show: { transition: { staggerChildren: 0.05 } }
 const colV       = { hidden: { opacity: 0, x: -12 }, show: { opacity: 1, x: 0, transition: { duration: 0.35 } } };
 
 export function KanbanBoard({ userId }: { userId: string }) {
-  const [items,   setItems]   = useState<TrackerItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items,        setItems]        = useState<TrackerItem[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export function KanbanBoard({ userId }: { userId: string }) {
   if (loading) {
     return (
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {COLUMNS.slice(0, 6).map((col) => (
+        {COLUMNS.slice(0, 5).map((col) => (
           <div key={col.status} className="flex-shrink-0 w-60 space-y-3">
             <Skeleton className="h-6 w-28 rounded-lg" />
             <Skeleton className="h-20 w-full rounded-xl" />
@@ -85,6 +87,22 @@ export function KanbanBoard({ userId }: { userId: string }) {
   const visibleCols = COLUMNS;
 
   return (
+    <>
+    {showAddModal && (
+      <AddJobModal
+        onClose={() => setShowAddModal(false)}
+        onAdded={(item) => setItems((prev) => [item as unknown as TrackerItem, ...prev])}
+      />
+    )}
+    <div className="mb-4 flex items-center justify-end">
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="btn-primary text-[13px] h-9 px-4 flex items-center gap-1.5"
+      >
+        <Plus size={14} />
+        Add Job
+      </button>
+    </div>
     <div className="w-full overflow-x-auto pb-4">
       <motion.div
         variants={containerV}
@@ -151,5 +169,6 @@ export function KanbanBoard({ userId }: { userId: string }) {
         })}
       </motion.div>
     </div>
+    </>
   );
 }

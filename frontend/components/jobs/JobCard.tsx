@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FitGauge } from "./FitGauge";
 import {
@@ -10,6 +10,8 @@ import {
   Zap,
   Clock,
   ExternalLink,
+  Download,
+  Lock,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -21,6 +23,12 @@ interface ScoreBreakdown {
   profile_completeness?: { score: number };
 }
 
+interface Artifact {
+  id:           string;
+  type:         string;
+  storage_path: string;
+}
+
 interface JobCardProps {
   fitScore:            number;
   evidenceConfidence:  string;
@@ -28,15 +36,20 @@ interface JobCardProps {
   fitExplanation:      string | null;
   ineligibilityReason: string | null;
   scoreBreakdown?:     { components?: ScoreBreakdown };
+  recoveryComplete:    boolean;
   job: {
-    id:              string;
-    title:           string;
-    company:         string;
-    location:        string;
-    seniority_level: string;
-    remote_eligible: boolean;
-    ats_family:      string;
-    posting_date:    string;
+    id:               string;
+    title:            string;
+    company:          string;
+    location:         string;
+    seniority_level:  string;
+    remote_eligible:  boolean;
+    ats_family:       string;
+    posting_date:     string;
+    board_categories: string[];
+    source_regions:   string[];
+    is_startup:       boolean;
+    is_remote_first:  boolean;
   };
   onTailor: (jobId: string) => Promise<void>;
 }
@@ -66,18 +79,72 @@ function daysAgo(dateStr: string) {
   return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : `${diff}d ago`;
 }
 
-export function JobCard({ fitScore, evidenceConfidence, automationEligibility, fitExplanation, ineligibilityReason, scoreBreakdown, job, onTailor }: JobCardProps) {
-  const [expanded,  setExpanded]  = useState(false);
-  const [tailoring, setTailoring] = useState(false);
-  const [tailored,  setTailored]  = useState(false);
+type TailorState = "idle" | "queuing" | "generating" | "done" | "timeout" | "error";
+
+export function JobCard({ fitScore, evidenceConfidence, automationEligibility, fitExplanation, ineligibilityReason, scoreBreakdown, recoveryComplete, job, onTailor }: JobCardProps) {
+  const [expanded,     setExpanded]     = useState(false);
+  const [tailorState,  setTailorState]  = useState<TailorState>("idle");
+  const [artifacts,    setArtifacts]    = useState<Artifact[]>([]);
+  const [downloading,  setDownloading]  = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const color = avatarColor(job.company);
 
+  const pollArtifacts = (token: string) => {
+    let elapsed = 0;
+    pollRef.current = setInterval(async () => {
+      elapsed += 3;
+      if (elapsed > 60) {
+        clearInterval(pollRef.current!);
+        setTailorState("timeout");
+        return;
+      }
+      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/${job.id}/artifacts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const relevant = (data.data ?? []).filter((a: Artifact) =>
+        a.type === "tailored_resume" || a.type === "cover_letter"
+      );
+      if (relevant.length > 0) {
+        clearInterval(pollRef.current!);
+        setArtifacts(relevant);
+        setTailorState("done");
+      }
+    }, 3000);
+  };
+
   const handleTailor = async () => {
-    setTailoring(true);
-    await onTailor(job.id);
-    setTailoring(false);
-    setTailored(true);
+    if (!recoveryComplete) return;
+    setTailorState("queuing");
+    try {
+      const token = (await import("@/lib/supabase/client"))
+        .createClient().auth.getSession().then((r) => r.data.session?.access_token ?? "");
+      const t = await token;
+      await onTailor(job.id);
+      setTailorState("generating");
+      pollArtifacts(t);
+    } catch {
+      setTailorState("error");
+    }
+  };
+
+  const download = async (artifact: Artifact) => {
+    setDownloading(artifact.id);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const t = (await createClient().auth.getSession()).data.session?.access_token ?? "";
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs/${job.id}/artifacts/${artifact.id}/url`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const { data } = await res.json();
+      const a = document.createElement("a");
+      a.href = data.url;
+      a.download = `${artifact.type}-${job.id}.pdf`;
+      a.click();
+    } finally {
+      setDownloading(null);
+    }
   };
 
   const breakdownData = scoreBreakdown?.components
@@ -139,6 +206,13 @@ export function JobCard({ fitScore, evidenceConfidence, automationEligibility, f
           {job.seniority_level && (
             <span className="badge-blue">{job.seniority_level.replace(/_/g, " ").toUpperCase()}</span>
           )}
+          {job.is_startup && <span className="badge-blue">Startup</span>}
+          {job.is_remote_first && <span className="badge-teal">Remote-First</span>}
+          {(job.source_regions || []).map((r) =>
+            r !== "global" && r !== "us" ? (
+              <span key={r} className="badge-gray">{r.toUpperCase()}</span>
+            ) : null
+          )}
         </div>
 
         {/* Ineligibility reason */}
@@ -154,14 +228,53 @@ export function JobCard({ fitScore, evidenceConfidence, automationEligibility, f
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-3 mt-4">
-          <button
-            onClick={handleTailor}
-            disabled={tailoring || tailored}
-            className="btn-primary text-[13px] h-8 px-4"
-          >
-            {tailored ? "✓ Queued" : tailoring ? "Queuing…" : "Generate Tailored Resume"}
-          </button>
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          {/* Tailor button — gated on recovery */}
+          {!recoveryComplete ? (
+            <div className="relative group">
+              <button disabled className="btn-primary text-[13px] h-8 px-4 opacity-40 flex items-center gap-1.5">
+                <Lock size={12} /> Generate Tailored Resume
+              </button>
+              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 whitespace-nowrap bg-pmfit-navy text-white text-[11px] rounded-lg px-3 py-1.5 shadow-lg">
+                Complete resume recovery first
+              </div>
+            </div>
+          ) : tailorState === "idle" ? (
+            <button onClick={handleTailor} className="btn-primary text-[13px] h-8 px-4">
+              Generate Tailored Resume
+            </button>
+          ) : tailorState === "queuing" ? (
+            <button disabled className="btn-primary text-[13px] h-8 px-4 flex items-center gap-2 opacity-70">
+              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Queuing…
+            </button>
+          ) : tailorState === "generating" ? (
+            <button disabled className="btn-primary text-[13px] h-8 px-4 flex items-center gap-2 opacity-70">
+              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating…
+            </button>
+          ) : tailorState === "done" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {artifacts.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => download(a)}
+                  disabled={downloading === a.id}
+                  className="btn-secondary text-[12px] h-8 px-3 flex items-center gap-1.5"
+                >
+                  <Download size={12} />
+                  {downloading === a.id ? "Downloading…" : a.type === "cover_letter" ? "Cover Letter" : "Tailored Resume"}
+                </button>
+              ))}
+            </div>
+          ) : tailorState === "timeout" ? (
+            <button onClick={handleTailor} className="btn-secondary text-[13px] h-8 px-4 text-pmfit-orange">
+              Still generating — retry
+            </button>
+          ) : (
+            <button onClick={handleTailor} className="btn-secondary text-[13px] h-8 px-4 text-pmfit-red">
+              Error — retry
+            </button>
+          )}
+
           <button
             onClick={() => setExpanded(!expanded)}
             className="btn-ghost text-[13px] h-8 px-3 ml-auto"
