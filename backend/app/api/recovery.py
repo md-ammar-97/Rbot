@@ -2,9 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.core.security import get_current_user
 from app.core.supabase import supabase_admin
-from app.workers.tasks import build_profile_graph
 
 router = APIRouter()
+
+
+def _complete_recovery(user_id: str, case_id: str) -> None:
+    """Mark case resolved, profile complete, queue baseline generation."""
+    supabase_admin.table("recovery_cases").update({
+        "status": "resolved",
+        "resolved_at": "now()",
+    }).eq("id", case_id).execute()
+    supabase_admin.table("profiles").update({
+        "recovery_status": "complete",
+    }).eq("id", user_id).execute()
+    from app.workers.tasks import generate_baseline
+    generate_baseline.delay(user_id)
 
 
 def _one(result):
@@ -24,9 +36,20 @@ async def recovery_status(user=Depends(get_current_user)):
 
     case = _one(
         supabase_admin.table("recovery_cases")
-        .select("id, status, diagnosis, questions_answered_count, created_at")
-        .eq("user_id", user.id).neq("status", "complete").limit(1).execute()
+        .select("id, status, diagnosis, open_questions, questions_answered_count, created_at")
+        .eq("user_id", user.id).eq("status", "in_progress").limit(1).execute()
     )
+
+    # Auto-recheck: if answers already cover all questions but completion wasn't triggered
+    if case and profile["recovery_status"] == "in_progress":
+        all_answers = supabase_admin.table("recovery_answers").select("question_id") \
+                      .eq("case_id", case["id"]).execute().data or []
+        answered_count = len({a["question_id"] for a in all_answers})
+        total_questions = len(case.get("open_questions") or [])
+        if total_questions > 0 and answered_count >= total_questions:
+            _complete_recovery(user.id, case["id"])
+            profile["recovery_status"] = "complete"
+            case = None
 
     return {
         "data": {
@@ -83,30 +106,48 @@ class AnswerPayload(BaseModel):
 async def submit_answer(payload: AnswerPayload, user=Depends(get_current_user)):
     case = _one(
         supabase_admin.table("recovery_cases")
-        .select("id, user_id")
+        .select("id, user_id, open_questions")
         .eq("id", payload.case_id).limit(1).execute()
     )
     if not case or case["user_id"] != user.id:
         raise HTTPException(403, "Case not found or access denied.")
 
-    supabase_admin.table("recovery_answers").insert({
-        "case_id":       payload.case_id,
-        "user_id":       user.id,
-        "question_id":   payload.question_id,
-        "question_text": payload.question_text,
-        "answer":        payload.answer,
-    }).execute()
+    # Upsert answer — avoid duplicates if the user re-submits a question
+    existing = _one(
+        supabase_admin.table("recovery_answers").select("id")
+        .eq("case_id", payload.case_id).eq("question_id", payload.question_id)
+        .limit(1).execute()
+    )
+    if existing:
+        supabase_admin.table("recovery_answers").update({
+            "answer": payload.answer,
+        }).eq("id", existing["id"]).execute()
+    else:
+        supabase_admin.table("recovery_answers").insert({
+            "case_id":       payload.case_id,
+            "user_id":       user.id,
+            "question_id":   payload.question_id,
+            "question_text": payload.question_text,
+            "answer":        payload.answer,
+        }).execute()
+
+    # Count distinct answered questions (real count, not a broken RPC)
+    all_answers = supabase_admin.table("recovery_answers").select("question_id") \
+                  .eq("case_id", payload.case_id).execute().data or []
+    answered_count = len({a["question_id"] for a in all_answers})
+    total_questions = len(case.get("open_questions") or [])
 
     supabase_admin.table("recovery_cases").update({
-        "questions_answered_count": supabase_admin.rpc(
-            "increment", {"table_name": "recovery_cases", "column": "questions_answered_count",
-                          "id": payload.case_id}
-        )
+        "questions_answered_count": answered_count,
     }).eq("id", payload.case_id).execute()
 
-    build_profile_graph.delay(user.id)
+    # All questions answered → complete recovery and queue baseline (skip re-diagnosis,
+    # which would re-examine the raw profile graph and falsely reopen the case)
+    if total_questions > 0 and answered_count >= total_questions:
+        _complete_recovery(user.id, payload.case_id)
+        return {"data": {"status": "recovery_complete", "answered": answered_count, "total": total_questions}}
 
-    return {"data": {"status": "answer_saved", "rebuild_queued": True}}
+    return {"data": {"status": "answer_saved", "answered": answered_count, "total": total_questions}}
 
 
 @router.get("/baseline")
